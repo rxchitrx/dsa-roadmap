@@ -4,6 +4,8 @@ from django.db import IntegrityError, transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from curriculum.services import recommend_next_concept
+
 from .models import RestDay, StudyBlock, WorkSession
 
 
@@ -163,6 +165,8 @@ def carry_forward_unfinished_blocks(
                 "position": next_position,
                 "status": StudyBlock.Status.PENDING,
                 "carried_from": source,
+                "assigned_concept": source.assigned_concept,
+                "concept_assignment_source": source.concept_assignment_source,
             },
         )
         carried_blocks.append(carried_block)
@@ -196,6 +200,68 @@ def generate_weekly_routine(start_date: date | None = None) -> list[StudyBlock]:
     carry_forward_unfinished_blocks(week_start)
     _normalize_carry_forward_positions(week_start)
     return generated_blocks
+
+
+@transaction.atomic
+def assign_recommended_concept(
+    start_date: date | None = None,
+    *,
+    now=None,
+) -> StudyBlock | None:
+    """Assign the current recommendation to the next open concept block.
+
+    The existing recommendation is returned when it is already assigned in the
+    target week. That makes repeated Today/weekly-plan loads safe and prevents
+    the same Concept from filling multiple routine blocks. A block with any
+    existing assignment is excluded, so learner-selected Concepts are never
+    replaced.
+    """
+
+    eligible_from = start_date or timezone.localdate()
+    target_week_start = week_start_for(eligible_from)
+    recommendation = recommend_next_concept(now=now)
+    if recommendation is None:
+        return None
+
+    assigned = (
+        StudyBlock.objects.select_for_update()
+        .filter(
+            week_start=target_week_start,
+            assigned_concept_id=recommendation.concept.pk,
+        )
+        .order_by("date", "position", "id")
+        .first()
+    )
+    if assigned is not None:
+        return assigned
+
+    candidate = (
+        StudyBlock.objects.select_for_update()
+        .filter(
+            week_start=target_week_start,
+            date__gte=eligible_from,
+            routine_key__endswith="-concept",
+            assigned_concept__isnull=True,
+            status=StudyBlock.Status.PENDING,
+        )
+        .order_by("date", "position", "id")
+        .first()
+    )
+    if candidate is None:
+        return None
+
+    candidate.assigned_concept = recommendation.concept
+    candidate.concept_assignment_source = (
+        StudyBlock.ConceptAssignmentSource.AUTOMATIC
+    )
+    candidate.save(
+        update_fields=(
+            "assigned_concept",
+            "concept_assignment_source",
+            "updated_at",
+        )
+    )
+    return candidate
 
 
 def is_weekly_routine_complete(value: date) -> bool:

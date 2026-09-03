@@ -184,6 +184,34 @@ h1 {
   letter-spacing: -0.035em;
 }
 
+.assigned-concept,
+.unassigned-concept {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.assigned-concept-label {
+  margin-right: 8px;
+  color: var(--amber);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.assigned-concept a {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-color: var(--amber);
+  text-underline-offset: 3px;
+}
+
+.assigned-concept a:hover,
+.assigned-concept a:focus-visible {
+  color: var(--amber);
+}
+
 .study-block-meta {
   display: flex;
   align-items: center;

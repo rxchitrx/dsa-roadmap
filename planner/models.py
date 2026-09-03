@@ -10,11 +10,28 @@ class StudyBlock(models.Model):
         PENDING = "pending", "Pending"
         COMPLETED = "completed", "Completed"
 
+    class ConceptAssignmentSource(models.TextChoices):
+        AUTOMATIC = "automatic", "Recommended"
+        MANUAL = "manual", "Selected by you"
+
     date = models.DateField()
     title = models.CharField(max_length=200)
     planned_minutes = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     week_start = models.DateField(blank=True, db_index=True, null=True)
     routine_key = models.CharField(blank=True, max_length=80, null=True)
+    assigned_concept = models.ForeignKey(
+        "curriculum.Concept",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="study_blocks",
+    )
+    concept_assignment_source = models.CharField(
+        blank=True,
+        choices=ConceptAssignmentSource.choices,
+        default="",
+        max_length=20,
+    )
     carried_from = models.ForeignKey(
         "self",
         blank=True,
@@ -48,6 +65,12 @@ class StudyBlock(models.Model):
     @property
     def is_carried_forward(self) -> bool:
         return self.carried_from_id is not None
+
+    @property
+    def is_concept_learning_block(self) -> bool:
+        """Whether this row is the routine's learn-one-concept block."""
+
+        return bool(self.routine_key and self.routine_key.endswith("-concept"))
 
 
 class RestDay(models.Model):

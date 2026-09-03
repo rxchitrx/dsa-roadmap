@@ -89,6 +89,20 @@
                     <p class="block-label">DSA study block {{ forloop.counter }}</p>
                   {% endif %}
                   <h3 data-testid="study-block-title">{{ block.title }}</h3>
+                  {% if block.assigned_concept %}
+                    <p class="assigned-concept" data-testid="assigned-concept">
+                      <span class="assigned-concept-label">
+                        {% if block.concept_assignment_source == 'manual' %}Selected concept{% else %}Recommended concept{% endif %}
+                      </span>
+                      <a href="{% url 'curriculum:concept_detail' concept_slug=block.assigned_concept.slug %}">
+                        {{ block.assigned_concept.name }}
+                      </a>
+                    </p>
+                  {% elif block.is_concept_learning_block %}
+                    <p class="unassigned-concept" data-testid="unassigned-concept">
+                      No concept assigned yet.
+                    </p>
+                  {% endif %}
                 </div>
                 <div class="study-block-meta">
                   <span class="duration" data-testid="study-block-duration">

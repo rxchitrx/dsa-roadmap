@@ -11,6 +11,7 @@ from .services import (
     ActiveWorkSessionError,
     carry_forward_unfinished_blocks,
     InvalidWorkSessionStateError,
+    assign_recommended_concept,
     generate_weekly_routine,
     format_elapsed_seconds,
     is_weekly_routine_complete,
@@ -59,9 +60,12 @@ def _decorate_with_timer_sessions(study_blocks):
 def _today_context(today_date=None, timer_error=None):
     today_date = today_date or timezone.localdate()
     carry_forward_unfinished_blocks(today_date)
+    assign_recommended_concept(today_date)
     rest_day = is_rest_day(today_date)
-    all_study_blocks = StudyBlock.objects.filter(date=today_date).order_by(
-        "position", "id"
+    all_study_blocks = (
+        StudyBlock.objects.select_related("assigned_concept__topic")
+        .filter(date=today_date)
+        .order_by("position", "id")
     )
     study_blocks = _decorate_with_timer_sessions(
         [] if rest_day else all_study_blocks
@@ -94,9 +98,9 @@ def _weekly_plan_context(week_start, forms_by_block=None):
     forms_by_block = forms_by_block or {}
     blocks_by_date = {}
     blocks = _decorate_with_timer_sessions(
-        StudyBlock.objects.filter(week_start=week_start).order_by(
-            "date", "position", "id"
-        )
+        StudyBlock.objects.select_related("assigned_concept__topic")
+        .filter(week_start=week_start)
+        .order_by("date", "position", "id")
     )
     for block in blocks:
         blocks_by_date.setdefault(block.date, []).append(block)
@@ -141,6 +145,7 @@ def _weekly_plan_context(week_start, forms_by_block=None):
 def weekly_plan(request):
     week_start = week_start_for(timezone.localdate())
     carry_forward_unfinished_blocks(week_start)
+    assign_recommended_concept(timezone.localdate())
     return render(
         request,
         "planner/weekly_plan.html",

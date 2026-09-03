@@ -236,7 +236,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -246,9 +247,38 @@ input {
   font-size: 0.95rem;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--amber);
   outline: 2px solid color-mix(in srgb, var(--amber) 30%, transparent);
+}
+
+.assigned-concept,
+.unassigned-concept {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.assigned-concept-label {
+  margin-right: 8px;
+  color: var(--amber);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.assigned-concept a {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-color: var(--amber);
+  text-underline-offset: 3px;
+}
+
+.assigned-concept a:hover,
+.assigned-concept a:focus-visible {
+  color: var(--amber);
 }
 
 .save-button {

@@ -100,6 +100,12 @@
                             data-testid="edit-duration"
                           >
                         </label>
+                        {% if item.block.is_concept_learning_block %}
+                          <label>
+                            Concept
+                            {{ item.form.assigned_concept }}
+                          </label>
+                        {% endif %}
                       </div>
                       {% if item.block.is_carried_forward %}
                         <p class="carry-forward-note" data-testid="carry-forward-label">
@@ -115,6 +121,21 @@
                       {% endif %}
                       <button class="save-button" type="submit">Save changes</button>
                     </form>
+
+                    {% if item.block.assigned_concept %}
+                      <p class="assigned-concept" data-testid="assigned-concept">
+                        <span class="assigned-concept-label">
+                          {% if item.block.concept_assignment_source == 'manual' %}Selected concept{% else %}Recommended concept{% endif %}
+                        </span>
+                        <a href="{% url 'curriculum:concept_detail' concept_slug=item.block.assigned_concept.slug %}">
+                          {{ item.block.assigned_concept.name }}
+                        </a>
+                      </p>
+                    {% elif item.block.is_concept_learning_block %}
+                      <p class="unassigned-concept" data-testid="unassigned-concept">
+                        No concept assigned yet.
+                      </p>
+                    {% endif %}
 
                     <div class="reorder-controls" aria-label="Reorder {{ item.block.title }}">
                       <form method="post" action="{% url 'planner:reorder_study_block' item.block.pk %}">
