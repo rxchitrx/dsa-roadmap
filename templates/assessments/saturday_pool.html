@@ -1,0 +1,88 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Saturday assessment · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'assessments/assessment.css' %}">
+  </head>
+  <body>
+    <main class="assessment-shell" data-testid="saturday-assessment">
+      <header class="assessment-header">
+        <a class="back-link" href="/">← Today</a>
+        <p class="eyebrow">DSA ROADMAP / SATURDAY ASSESSMENT</p>
+        <h1>Test this week’s learning.</h1>
+        <p class="lede">
+          A ninety-minute pool built from Concepts you explicitly completed this week.
+          The selector favors Problems you have not seen yet.
+        </p>
+      </header>
+
+      <section class="assessment-summary" data-testid="assessment-summary">
+        <div>
+          <p class="eyebrow">WEEK OF {{ week_start|date:"M j, Y" }}</p>
+          <h2>{{ pool.selected_count }} of {{ pool.requested_problem_count }} Problems</h2>
+          <p class="summary-meta">{{ pool.mix_label }} · {{ pool.duration_minutes }} minutes</p>
+        </div>
+        {% if pool.is_sparse %}
+          <span class="status status--sparse" data-testid="sparse-pool">Sparse current-week pool</span>
+        {% else %}
+          <span class="status status--ready" data-testid="complete-pool">Ready for assessment</span>
+        {% endif %}
+      </section>
+
+      <section class="rationale" aria-labelledby="rationale-heading" data-testid="pool-rationale">
+        <p class="eyebrow">WHY THESE PROBLEMS</p>
+        <h2 id="rationale-heading">Selection rationale</h2>
+        <p>{{ pool.rationale }}</p>
+        {% if pool.eligibility_metadata.studied_concepts %}
+          <div class="concept-evidence">
+            <span class="evidence-label">Studied this week</span>
+            {% for concept in pool.eligibility_metadata.studied_concepts %}
+              <span class="concept-chip">{{ concept.topic }} / {{ concept.name }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </section>
+
+      {% if selections %}
+        <section class="selection-list" aria-label="Saturday assessment Problems">
+          {% for selection in selections %}
+            <article class="selection-card" data-testid="assessment-selection">
+              <div class="selection-topline">
+                <span class="problem-number">{{ selection.position|stringformat:"02d" }}</span>
+                <div class="selection-tags">
+                  <span class="difficulty difficulty--{{ selection.slot_kind }}">{{ selection.get_slot_kind_display }}</span>
+                  {% if selection.is_unseen %}
+                    <span class="novelty novelty--unseen">Unseen</span>
+                  {% else %}
+                    <span class="novelty">Previously seen</span>
+                  {% endif %}
+                </div>
+              </div>
+              <h3>{{ selection.problem.title }}</h3>
+              <p class="statement">{{ selection.problem.statement }}</p>
+              <p class="selection-rationale">{{ selection.rationale }}</p>
+              <div class="eligibility" data-testid="eligibility-metadata">
+                <span class="evidence-label">Eligible through</span>
+                {% for concept in selection.eligibility_metadata.eligible_concepts %}
+                  <span class="concept-chip">{{ concept.topic }} / {{ concept.name }}</span>
+                {% endfor %}
+              </div>
+            </article>
+          {% endfor %}
+        </section>
+      {% else %}
+        <section class="empty-state" data-testid="empty-assessment">
+          <p class="eyebrow">NO ELIGIBLE PROBLEMS YET</p>
+          <h2>Complete a Concept study block first.</h2>
+          <p>
+            This pool stays honest to the current week. Once a Concept lesson is marked complete,
+            eligible Easy and Medium Problems will appear here.
+          </p>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>
