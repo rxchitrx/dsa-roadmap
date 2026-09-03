@@ -1,0 +1,47 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Plan next week · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'planner/next_week.css' %}">
+  </head>
+  <body>
+    <main class="next-week-shell" data-testid="next-week-plan">
+      <header class="next-week-header">
+        <div>
+          <p class="eyebrow">DSA ROADMAP / SUNDAY PLANNING</p>
+          <h1>Plan next week</h1>
+          <p class="muted">{{ plan.week_start|date:"M j, Y" }} – {{ week_end|date:"M j, Y" }}</p>
+        </div>
+        <nav aria-label="Planning navigation"><a href="{% url 'planner:today' %}">Today</a><a href="{% url 'planner:weekly_summary' %}">Weekly summary</a></nav>
+      </header>
+
+      {% if saved %}<div class="notice notice--success" data-testid="plan-saved">Next week’s plan is saved.</div>{% endif %}
+      {% if plan_error %}<div class="notice notice--error" data-testid="plan-error">{{ plan_error }}</div>{% endif %}
+
+      {% if plan.recommendation %}
+        <section class="recommendation" data-testid="next-week-recommendation"><p class="eyebrow">RECOMMENDED CONCEPT</p><h2>{{ plan.recommendation.concept_name }}</h2><p>{{ plan.recommendation.reason }}</p></section>
+      {% endif %}
+
+      {% if plan.has_unscheduled_work %}<div class="notice" data-testid="unscheduled-reviews">{{ plan.unscheduled_due_review_ids|length }} due review{{ plan.unscheduled_due_review_ids|length|pluralize }} could not fit automatically. Add them during editing.</div>{% endif %}
+
+      <form method="post" action="{% url 'planner:save_next_week_plan' %}">
+        {% csrf_token %}
+        <input type="hidden" name="week" value="{{ plan.week_start|date:'Y-m-d' }}">
+        <div class="plan-list">
+          {% for block in plan.blocks %}
+            <article class="plan-row" data-testid="next-week-block">
+              <div class="plan-row-heading"><span class="day-label">{{ block.date|date:"l" }}</span><span class="source-label">{{ block.source }}</span></div>
+              <input name="block__{{ block.key }}__title" value="{{ block.title }}" aria-label="{{ block.title }} title">
+              <div class="plan-row-fields"><label>Minutes <input type="number" min="1" name="block__{{ block.key }}__planned_minutes" value="{{ block.planned_minutes }}"></label><label>Date <input type="date" name="block__{{ block.key }}__date" value="{{ block.date|date:'Y-m-d' }}"></label></div>
+              {% if block.problem_ids %}<small>{{ block.problem_ids|length }} Problem{{ block.problem_ids|length|pluralize }} assigned</small>{% endif %}
+            </article>
+          {% endfor %}
+        </div>
+        <button class="primary-button" type="submit">Save next week’s plan</button>
+      </form>
+    </main>
+  </body>
+</html>

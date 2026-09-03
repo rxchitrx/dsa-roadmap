@@ -19,7 +19,11 @@
             <h1>Today</h1>
             <time datetime="{{ today|date:'Y-m-d' }}">{{ today|date:'l, F j, Y' }}</time>
           </div>
-          <a class="summary-link" href="{% url 'planner:weekly_summary' %}">Weekly summary →</a>
+          <nav class="summary-link" aria-label="Planning navigation">
+            <a href="{% url 'planner:weekly_summary' %}">Weekly summary →</a>
+            <a href="{% url 'planner:progress_analytics' %}">Analytics →</a>
+            <a href="{% url 'planner:next_week_plan' %}">Plan next week →</a>
+          </nav>
         </div>
       </header>
 

@@ -15,11 +15,13 @@
           <h1>What moved this week?</h1>
           <p class="date-range">{{ summary.week_start|date:"M j" }} – {{ summary.week_end|date:"M j, Y" }}</p>
         </div>
-        <nav class="summary-nav" aria-label="Summary navigation">
-          <a href="?week={{ previous_week|date:'Y-m-d' }}">← Previous</a>
-          <a href="{% url 'planner:today' %}">Today</a>
-          <a href="?week={{ next_week|date:'Y-m-d' }}">Next →</a>
-        </nav>
+          <nav class="summary-nav" aria-label="Summary navigation">
+            <a href="?week={{ previous_week|date:'Y-m-d' }}">← Previous</a>
+            <a href="{% url 'planner:today' %}">Today</a>
+            <a href="{% url 'planner:progress_analytics' %}?start={{ summary.week_start|date:'Y-m-d' }}&end={{ summary.week_end|date:'Y-m-d' }}">Analytics</a>
+            <a href="{% url 'planner:next_week_plan' %}">Plan next week</a>
+            <a href="?week={{ next_week|date:'Y-m-d' }}">Next →</a>
+          </nav>
       </header>
 
       <section class="summary-hero" data-testid="summary-overview">

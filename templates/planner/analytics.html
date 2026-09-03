@@ -1,0 +1,82 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Analytics · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'planner/analytics.css' %}">
+  </head>
+  <body>
+    <main class="analytics-shell" data-testid="progress-analytics">
+      <header class="analytics-header">
+        <div>
+          <p class="eyebrow">DSA ROADMAP / EVIDENCE</p>
+          <h1>Progress analytics</h1>
+          <p class="muted">{{ analytics.range.start_date|date:"M j, Y" }} – {{ analytics.range.end_date|date:"M j, Y" }}</p>
+        </div>
+        <nav aria-label="Analytics navigation">
+          <a href="{% url 'planner:today' %}">Today</a>
+          <a href="{% url 'planner:weekly_summary' %}">Weekly summary</a>
+        </nav>
+      </header>
+
+      <form class="range-form" method="get" aria-label="Choose analytics date range">
+        <label>From <input type="date" name="start" value="{{ analytics.range.start_date|date:'Y-m-d' }}"></label>
+        <label>To <input type="date" name="end" value="{{ analytics.range.end_date|date:'Y-m-d' }}"></label>
+        <button type="submit">Update range</button>
+      </form>
+
+      {% if analytics.missing_data %}
+        <section class="notice" data-testid="analytics-missing-data" aria-label="Data notes">
+          <strong>Read the evidence carefully</strong>
+          <ul>
+            {% for message in analytics.missing_data %}<li>{{ message }}</li>{% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <section class="metric-grid" aria-label="Headline metrics">
+        <article class="metric"><span>Concept coverage</span><strong>{{ analytics.concepts.coverage_percent|default_if_none:"—" }}{% if analytics.concepts.coverage_percent is not None %}%{% endif %}</strong><small>{{ analytics.concepts.covered_count }}/{{ analytics.concepts.total_count }} Concepts</small></article>
+        <article class="metric"><span>Problems attempted</span><strong>{{ analytics.problems.outcomes.attempted }}</strong><small>{{ analytics.problems.outcomes.passing }} with a passing run</small></article>
+        <article class="metric"><span>Review retention</span><strong>{{ analytics.reviews.independent_retention_percent|default_if_none:"—" }}{% if analytics.reviews.independent_retention_percent is not None %}%{% endif %}</strong><small>{{ analytics.reviews.review_count }} reviews recorded</small></article>
+        <article class="metric"><span>Completed time</span><strong>{{ analytics.time.completed_minutes }} min</strong><small>{{ analytics.time.completed_session_count }} stopped sessions</small></article>
+        <article class="metric"><span>Consistency</span><strong>{{ analytics.consistency.consistency_percent|default_if_none:"—" }}{% if analytics.consistency.consistency_percent is not None %}%{% endif %}</strong><small>{{ analytics.consistency.active_day_count }}/{{ analytics.consistency.range_days }} active days</small></article>
+      </section>
+
+      <div class="analytics-columns">
+        <section class="panel" data-testid="analytics-concepts">
+          <p class="eyebrow">CONCEPTS</p><h2>Coverage by Topic</h2>
+          {% for topic in analytics.concepts.by_topic %}
+            <div class="row"><div><strong>{{ topic.name }}</strong><small>{{ topic.covered_count }}/{{ topic.total_count }} covered</small></div><strong>{{ topic.coverage_percent|default_if_none:"—" }}{% if topic.coverage_percent is not None %}%{% endif %}</strong></div>
+          {% empty %}<p class="empty">No Concepts are seeded yet.</p>{% endfor %}
+        </section>
+
+        <section class="panel" data-testid="analytics-problems">
+          <p class="eyebrow">PROBLEMS</p><h2>Execution versus learning</h2>
+          <div class="row"><span>Attempted</span><strong>{{ analytics.problems.outcomes.attempted }}</strong></div>
+          <div class="row"><span>Passing runs</span><strong>{{ analytics.problems.outcomes.passing }}</strong></div>
+          <div class="row"><span>With help</span><strong>{{ analytics.problems.outcomes.solved_with_help }}</strong></div>
+          <div class="row"><span>Independent</span><strong>{{ analytics.problems.outcomes.solved_independently }}</strong></div>
+        </section>
+
+        <section class="panel" data-testid="analytics-reviews">
+          <p class="eyebrow">RETENTION</p><h2>Review recall</h2>
+          <div class="row"><span>Independent recall</span><strong>{{ analytics.reviews.independent_recall_count }}</strong></div>
+          <div class="row"><span>Successful recall</span><strong>{{ analytics.reviews.successful_recall_count }}</strong></div>
+          <div class="row"><span>Current streak</span><strong>{{ analytics.consistency.current_streak_days }} days</strong></div>
+          <div class="row"><span>Longest streak</span><strong>{{ analytics.consistency.longest_streak_days }} days</strong></div>
+        </section>
+      </div>
+
+      <section class="panel" data-testid="analytics-daily">
+        <p class="eyebrow">DAILY SIGNAL</p><h2>Activity across the selected range</h2>
+        <div class="daily-list">
+          {% for day in analytics.consistency.by_day %}
+            <div class="daily-row{% if day.active %} daily-row--active{% endif %}"><time datetime="{{ day.date|date:'Y-m-d' }}">{{ day.date|date:"D, M j" }}</time><span>{{ day.evidence_count }} evidence event{{ day.evidence_count|pluralize }}</span></div>
+          {% endfor %}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -9,6 +9,9 @@ urlpatterns = [
     path("", views.today, name="today"),
     path("today/", views.today, name="today_page"),
     path("summary/", views.weekly_summary, name="weekly_summary"),
+    path("analytics/", views.progress_analytics, name="progress_analytics"),
+    path("next-week/", views.next_week_plan_preview, name="next_week_plan"),
+    path("next-week/save/", views.save_next_week_plan_view, name="save_next_week_plan"),
     path(
         "routine/generate/",
         views.generate_weekly_routine_view,

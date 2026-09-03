@@ -30,6 +30,13 @@ from .services import (
     week_start_for,
 )
 from .summary import get_weekly_summary
+from .analytics import get_progress_analytics, resolve_analytics_range
+from .next_week import (
+    NextWeekPlanError,
+    edit_next_week_plan,
+    generate_next_week_plan,
+    save_next_week_plan,
+)
 
 
 def _decorate_with_timer_sessions(study_blocks):
@@ -131,6 +138,110 @@ def weekly_summary(request):
             "summary": summary,
             "previous_week": summary["week_start"] - timedelta(days=7),
             "next_week": summary["week_start"] + timedelta(days=7),
+        },
+    )
+
+
+@require_GET
+def progress_analytics(request):
+    """Render detailed evidence for an inclusive local-date range."""
+
+    raw_start = request.GET.get("start")
+    raw_end = request.GET.get("end")
+    start = _parse_day_date(raw_start) if raw_start else None
+    end = _parse_day_date(raw_end) if raw_end else None
+    if (raw_start and start is None) or (raw_end and end is None):
+        return HttpResponseBadRequest("Use valid start and end dates in YYYY-MM-DD format.")
+    try:
+        window = resolve_analytics_range(start, end)
+    except ValueError as error:
+        return HttpResponseBadRequest(str(error))
+    analytics = get_progress_analytics(
+        window.start_date,
+        window.end_date,
+    )
+    return render(
+        request,
+        "planner/analytics.html",
+        {"analytics": analytics},
+    )
+
+
+def _next_week_form_edits(request, plan):
+    edits = {}
+    for block in plan.blocks:
+        prefix = f"block__{block.key}__"
+        title = request.POST.get(f"{prefix}title")
+        minutes = request.POST.get(f"{prefix}planned_minutes")
+        block_date = request.POST.get(f"{prefix}date")
+        changes = {}
+        if title is not None:
+            changes["title"] = title
+        if minutes is not None:
+            changes["planned_minutes"] = minutes
+        if block_date is not None:
+            parsed_date = _parse_day_date(block_date)
+            if parsed_date is None:
+                raise NextWeekPlanError("Use valid dates for every planned block.")
+            changes["date"] = parsed_date
+        if changes:
+            edits[block.key] = changes
+    return edits
+
+
+@require_GET
+def next_week_plan_preview(request):
+    """Show the generated, editable preview for the next calendar week."""
+
+    raw_week = request.GET.get("week")
+    target_week = _parse_day_date(raw_week) if raw_week else None
+    if raw_week and target_week is None:
+        return HttpResponseBadRequest("Use a valid week date in YYYY-MM-DD format.")
+    plan = generate_next_week_plan(target_week_start=target_week)
+    return render(
+        request,
+        "planner/next_week.html",
+        {
+            "plan": plan,
+            "week_end": plan.week_start + timedelta(days=6),
+            "saved": False,
+        },
+    )
+
+
+@require_POST
+def save_next_week_plan_view(request):
+    """Validate and save edits from the next-week preview form."""
+
+    raw_week = request.POST.get("week")
+    target_week = _parse_day_date(raw_week) if raw_week else None
+    if raw_week and target_week is None:
+        return HttpResponseBadRequest("Use a valid week date in YYYY-MM-DD format.")
+    try:
+        plan = generate_next_week_plan(target_week_start=target_week)
+        edits = _next_week_form_edits(request, plan)
+        edited_plan = edit_next_week_plan(plan, edits)
+        saved_plan = save_next_week_plan(edited_plan)
+    except NextWeekPlanError as error:
+        plan = generate_next_week_plan(target_week_start=target_week)
+        return render(
+            request,
+            "planner/next_week.html",
+            {
+                "plan": plan,
+                "week_end": plan.week_start + timedelta(days=6),
+                "saved": False,
+                "plan_error": str(error),
+            },
+            status=400,
+        )
+    return render(
+        request,
+        "planner/next_week.html",
+        {
+            "plan": saved_plan,
+            "week_end": saved_plan.week_start + timedelta(days=6),
+            "saved": True,
         },
     )
 
