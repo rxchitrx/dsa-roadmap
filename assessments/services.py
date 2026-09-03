@@ -12,13 +12,26 @@ from planner.models import StudyBlock
 from practice.models import LearningStatus, ProblemLearningStatus
 from problems.models import Problem
 
-from .models import AssessmentPool, AssessmentSelection
+from .models import (
+    AssessmentPool,
+    AssessmentResponse,
+    AssessmentSelection,
+    AssessmentSession,
+)
 
 
 SLOT_PLAN = (
     (AssessmentSelection.SlotKind.EASY, 1),
     (AssessmentSelection.SlotKind.MEDIUM, 2),
 )
+
+
+class AssessmentUnavailable(ValueError):
+    """Raised when a Saturday session cannot be started from the current pool."""
+
+
+class AssessmentClosed(ValueError):
+    """Raised when a response is changed after final submission."""
 
 
 def week_start_for(value: date) -> date:
@@ -229,6 +242,11 @@ def generate_saturday_assessment_pool(
     """
 
     start = week_start_for(week_start or timezone.localdate())
+    existing_pool = AssessmentPool.objects.filter(week_start=start).first()
+    if existing_pool and AssessmentSession.objects.filter(pool=existing_pool).exists():
+        # Starting a session freezes its Problem identities. A later pool page
+        # load must not regenerate selections and cascade away saved answers.
+        return existing_pool
     studied_evidence = get_studied_concept_evidence(start)
     candidate_rows = _candidate_pool(studied_evidence)
     selected_rows: list[tuple[str, dict]] = []
@@ -311,3 +329,258 @@ def generate_saturday_assessment_pool(
 
 # A descriptive alias for callers that care about the selection operation.
 select_saturday_problems = generate_saturday_assessment_pool
+
+
+def _now(value=None):
+    return value or timezone.now()
+
+
+def _ensure_session_responses(session: AssessmentSession) -> None:
+    """Create missing response rows without resetting an existing session."""
+
+    existing_selection_ids = set(
+        session.responses.values_list("selection_id", flat=True)
+    )
+    selections = session.pool.selections.all()
+    missing = [
+        AssessmentResponse(session=session, selection=selection)
+        for selection in selections
+        if selection.pk not in existing_selection_ids
+    ]
+    if missing:
+        AssessmentResponse.objects.bulk_create(missing)
+
+
+def _response_snapshot(response: AssessmentResponse) -> dict:
+    selection = response.selection
+    return {
+        "response_id": response.pk,
+        "selection_id": selection.pk,
+        "position": selection.position,
+        "problem_id": selection.problem_id,
+        "difficulty": selection.slot_kind,
+        "draft_answer": response.draft_answer,
+        "outcome": response.outcome,
+        "result_note": response.result_note,
+    }
+
+
+def _record_cutoff_snapshot(
+    session: AssessmentSession,
+    captured_at,
+    *,
+    mark_overtime: bool,
+) -> AssessmentSession:
+    responses = list(
+        session.responses.select_related("selection__problem").order_by(
+            "selection__position", "id"
+        )
+    )
+    snapshot = [_response_snapshot(response) for response in responses]
+    for response in responses:
+        response.cutoff_draft_answer = response.draft_answer
+        response.cutoff_outcome = response.outcome
+        response.cutoff_result_note = response.result_note
+        response.cutoff_recorded_at = captured_at
+        response.save(
+            update_fields=(
+                "cutoff_draft_answer",
+                "cutoff_outcome",
+                "cutoff_result_note",
+                "cutoff_recorded_at",
+                "updated_at",
+            )
+        )
+
+    session.cutoff_recorded_at = captured_at
+    session.cutoff_snapshot = {
+        "captured_at": captured_at.isoformat(),
+        "responses": snapshot,
+    }
+    if mark_overtime and session.status == AssessmentSession.Status.IN_PROGRESS:
+        session.status = AssessmentSession.Status.OVERTIME
+    session.save(
+        update_fields=(
+            "cutoff_recorded_at",
+            "cutoff_snapshot",
+            "status",
+            "updated_at",
+        )
+    )
+    return session
+
+
+@transaction.atomic
+def refresh_assessment_session(
+    session: AssessmentSession,
+    now=None,
+) -> AssessmentSession:
+    """Record the official timed snapshot once the 90-minute cutoff is reached."""
+
+    current_time = _now(now)
+    if (
+        session.status == AssessmentSession.Status.IN_PROGRESS
+        and current_time >= session.cutoff_at
+        and session.cutoff_recorded_at is None
+    ):
+        session = AssessmentSession.objects.select_for_update().get(pk=session.pk)
+        if session.cutoff_recorded_at is None:
+            _record_cutoff_snapshot(session, current_time, mark_overtime=True)
+    return AssessmentSession.objects.get(pk=session.pk)
+
+
+@transaction.atomic
+def start_saturday_assessment(
+    week_start: date | None = None,
+    now=None,
+) -> AssessmentSession:
+    """Start once per pool, or return the same session for a safe resume."""
+
+    current_time = _now(now)
+    start = week_start_for(week_start or timezone.localdate())
+    existing_pool = AssessmentPool.objects.filter(week_start=start).first()
+    existing_session = (
+        AssessmentSession.objects.filter(pool=existing_pool).first()
+        if existing_pool
+        else None
+    )
+    pool = existing_pool or generate_saturday_assessment_pool(start)
+    if existing_session:
+        _ensure_session_responses(existing_session)
+        return refresh_assessment_session(existing_session, current_time)
+    if not pool.selections.exists():
+        raise AssessmentUnavailable("No Problems are available for this assessment yet.")
+
+    session, _created = AssessmentSession.objects.get_or_create(
+        pool=pool,
+        defaults={
+            "duration_minutes": pool.duration_minutes,
+            "started_at": current_time,
+            "cutoff_at": current_time + timedelta(minutes=pool.duration_minutes),
+        },
+    )
+    _ensure_session_responses(session)
+    session = refresh_assessment_session(session, current_time)
+    return session
+
+
+def _summary_for_rows(rows: list[dict]) -> dict:
+    outcomes = [choice for choice, _label in AssessmentResponse.Outcome.choices]
+    summary = {
+        difficulty: {
+            "total": 0,
+            **{outcome: 0 for outcome in outcomes},
+        }
+        for difficulty in (
+            AssessmentSelection.SlotKind.EASY,
+            AssessmentSelection.SlotKind.MEDIUM,
+        )
+    }
+    for row in rows:
+        difficulty = row.get("difficulty")
+        if difficulty not in summary:
+            continue
+        outcome = row.get("outcome") or AssessmentResponse.Outcome.NOT_STARTED
+        if outcome not in summary[difficulty]:
+            outcome = AssessmentResponse.Outcome.NOT_STARTED
+        summary[difficulty]["total"] += 1
+        summary[difficulty][outcome] += 1
+    return summary
+
+
+def _live_response_rows(session: AssessmentSession) -> list[dict]:
+    return [
+        _response_snapshot(response)
+        for response in session.responses.select_related("selection__problem").order_by(
+            "selection__position", "id"
+        )
+    ]
+
+
+def get_assessment_summary(session: AssessmentSession) -> dict:
+    """Return separate timed and final easy/medium outcome totals."""
+
+    timed_rows = session.cutoff_snapshot.get("responses", [])
+    final_rows = _live_response_rows(session)
+    return {
+        "timed": _summary_for_rows(timed_rows),
+        "final": _summary_for_rows(final_rows),
+        "submitted_after_cutoff": bool(
+            session.submitted_at and session.submitted_at >= session.cutoff_at
+        ),
+        "overtime_minutes": (
+            max(0, int((session.submitted_at - session.cutoff_at).total_seconds() // 60))
+            if session.submitted_at and session.submitted_at >= session.cutoff_at
+            else 0
+        ),
+    }
+
+
+@transaction.atomic
+def save_assessment_response(
+    session: AssessmentSession,
+    position: int,
+    *,
+    draft_answer: str = "",
+    outcome: str = AssessmentResponse.Outcome.NOT_STARTED,
+    result_note: str = "",
+    now=None,
+) -> AssessmentResponse:
+    """Persist one Problem's answer and self-recorded outcome before navigation."""
+
+    session = refresh_assessment_session(session, now)
+    if not session.is_editable:
+        raise AssessmentClosed("This assessment has already been submitted.")
+    if outcome not in dict(AssessmentResponse.Outcome.choices):
+        raise ValueError("Choose a valid Problem outcome.")
+    response = session.responses.select_related("selection").get(
+        selection__position=position
+    )
+    response.draft_answer = draft_answer
+    response.outcome = outcome
+    response.result_note = result_note
+    response.save(update_fields=("draft_answer", "outcome", "result_note", "updated_at"))
+    return response
+
+
+@transaction.atomic
+def navigate_assessment(
+    session: AssessmentSession,
+    position: int,
+    now=None,
+) -> AssessmentSession:
+    """Move the active Problem while retaining all response rows."""
+
+    session = refresh_assessment_session(session, now)
+    problem_count = session.pool.selections.count()
+    if position < 1 or position > problem_count:
+        raise ValueError("That assessment Problem does not exist.")
+    if not session.is_editable:
+        return session
+    session.current_position = position
+    session.save(update_fields=("current_position", "updated_at"))
+    return session
+
+
+@transaction.atomic
+def submit_assessment(session: AssessmentSession, now=None) -> AssessmentSession:
+    """Freeze a final result, retaining a separate timed cutoff result."""
+
+    current_time = _now(now)
+    session = refresh_assessment_session(session, current_time)
+    if session.status == AssessmentSession.Status.COMPLETED:
+        return session
+    if session.cutoff_recorded_at is None:
+        _record_cutoff_snapshot(
+            session,
+            current_time,
+            mark_overtime=current_time >= session.cutoff_at,
+        )
+        session.refresh_from_db()
+    session.submitted_at = current_time
+    session.status = AssessmentSession.Status.COMPLETED
+    session.final_summary = get_assessment_summary(session)
+    session.save(
+        update_fields=("submitted_at", "status", "final_summary", "updated_at")
+    )
+    return session

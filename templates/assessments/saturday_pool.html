@@ -47,6 +47,16 @@
       </section>
 
       {% if selections %}
+        <form class="start-form" method="post" action="{% url 'assessments:start_assessment' %}">
+          {% csrf_token %}
+          <input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}">
+          <button class="primary-button" type="submit" data-testid="start-assessment">
+            {% if session %}Resume assessment{% else %}Start 90-minute assessment{% endif %}
+          </button>
+          {% if session %}
+            <span class="summary-meta">Your saved drafts and outcomes will stay attached to this week.</span>
+          {% endif %}
+        </form>
         <section class="selection-list" aria-label="Saturday assessment Problems">
           {% for selection in selections %}
             <article class="selection-card" data-testid="assessment-selection">

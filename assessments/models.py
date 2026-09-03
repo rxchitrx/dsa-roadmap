@@ -97,3 +97,108 @@ class AssessmentSelection(models.Model):
             for concept in self.eligibility_metadata.get("eligible_concepts", [])
             if concept.get("name")
         ]
+
+
+class AssessmentSession(models.Model):
+    """A resumable timed attempt against one generated Saturday pool."""
+
+    class Status(models.TextChoices):
+        IN_PROGRESS = "in_progress", "In progress"
+        OVERTIME = "overtime", "Overtime"
+        COMPLETED = "completed", "Completed"
+
+    pool = models.OneToOneField(
+        AssessmentPool,
+        on_delete=models.CASCADE,
+        related_name="session",
+    )
+    duration_minutes = models.PositiveIntegerField(
+        default=90,
+        validators=[MinValueValidator(1)],
+    )
+    started_at = models.DateTimeField()
+    cutoff_at = models.DateTimeField()
+    cutoff_recorded_at = models.DateTimeField(null=True, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    current_position = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.IN_PROGRESS,
+    )
+    cutoff_snapshot = models.JSONField(default=dict, blank=True)
+    final_summary = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "assessments"
+        ordering = ("-started_at", "-id")
+
+    def __str__(self) -> str:
+        return f"Assessment session for {self.pool}"
+
+    @property
+    def is_editable(self) -> bool:
+        return self.status != self.Status.COMPLETED
+
+    @property
+    def is_overtime(self) -> bool:
+        return self.status == self.Status.OVERTIME
+
+
+class AssessmentResponse(models.Model):
+    """The learner's draft and self-recorded outcome for one Problem."""
+
+    class Outcome(models.TextChoices):
+        NOT_STARTED = "not_started", "Not started"
+        IN_PROGRESS = "in_progress", "In progress"
+        SOLVED = "solved", "Solved"
+        NEEDS_REVIEW = "needs_review", "Needs review"
+        SKIPPED = "skipped", "Skipped"
+
+    session = models.ForeignKey(
+        AssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="responses",
+    )
+    selection = models.OneToOneField(
+        AssessmentSelection,
+        on_delete=models.CASCADE,
+        related_name="response",
+    )
+    draft_answer = models.TextField(blank=True)
+    outcome = models.CharField(
+        max_length=20,
+        choices=Outcome.choices,
+        default=Outcome.NOT_STARTED,
+    )
+    result_note = models.TextField(blank=True)
+    cutoff_draft_answer = models.TextField(null=True, blank=True)
+    cutoff_outcome = models.CharField(
+        max_length=20,
+        choices=Outcome.choices,
+        null=True,
+        blank=True,
+    )
+    cutoff_result_note = models.TextField(null=True, blank=True)
+    cutoff_recorded_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "assessments"
+        ordering = ("selection__position", "id")
+        indexes = [
+            models.Index(
+                fields=("session", "outcome"),
+                name="assess_session_outcome_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Response for {self.selection.problem.title}"
+
+    @property
+    def has_progress(self) -> bool:
+        return bool(self.draft_answer.strip()) or self.outcome != self.Outcome.NOT_STARTED

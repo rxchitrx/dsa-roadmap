@@ -1,0 +1,125 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Assessment session · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'assessments/assessment.css' %}">
+    <script defer src="{% static 'assessments/assessment.js' %}"></script>
+  </head>
+  <body>
+    <main
+      class="assessment-shell session-shell"
+      data-testid="assessment-session"
+      data-cutoff-at="{{ session.cutoff_at|date:'c' }}"
+      data-status="{{ session.status }}"
+    >
+      <header class="assessment-header session-header">
+        <a class="back-link" href="{% url 'assessments:saturday_pool' %}?week={{ session.pool.week_start|date:'Y-m-d' }}">← Assessment pool</a>
+        <p class="eyebrow">DSA ROADMAP / SATURDAY ASSESSMENT</p>
+        <div class="session-title-row">
+          <div>
+            <h1>Show what held.</h1>
+            <p class="lede">Work through each Problem honestly. Save your draft before moving on; the session keeps every response.</p>
+          </div>
+          <div class="timer-panel" data-testid="assessment-timer-panel">
+            {% if session.status == 'completed' %}
+              <span class="timer-label">Session complete</span>
+              <strong data-testid="assessment-timer">Done</strong>
+            {% elif session.status == 'overtime' %}
+              <span class="timer-label">Timed cutoff reached</span>
+              <strong data-testid="assessment-timer">Overtime</strong>
+            {% else %}
+              <span class="timer-label">Time remaining</span>
+              <strong data-testid="assessment-timer">{{ remaining_seconds }}</strong>
+            {% endif %}
+          </div>
+        </div>
+      </header>
+
+      <section class="session-progress" data-testid="assessment-progress">
+        <div>
+          <p class="eyebrow">WEEK OF {{ session.pool.week_start|date:"M j, Y" }}</p>
+          <h2>{{ current_response.selection.position|stringformat:"02d" }} / {{ responses|length }} · {{ current_response.selection.problem.title }}</h2>
+        </div>
+        <span class="status status--{{ session.status }}" data-testid="session-status">{{ session.get_status_display }}</span>
+      </section>
+
+      {% if session.status == 'completed' %}
+        <section class="completion-panel" data-testid="assessment-complete">
+          <p class="eyebrow">FINAL RESULT SAVED</p>
+          <h2>Assessment complete.</h2>
+          {% if summary.submitted_after_cutoff %}
+            <p class="summary-meta">Final submission includes {{ summary.overtime_minutes }} minute{{ summary.overtime_minutes|pluralize }} of overtime. The timed snapshot below is preserved separately.</p>
+          {% else %}
+            <p class="summary-meta">Submitted inside the timed window. Your final result is also your timed result.</p>
+          {% endif %}
+          <div class="outcome-grid" data-testid="outcome-summary">
+            <article>
+              <p class="eyebrow">TIMED CUTOFF</p>
+              <h3>At the 90-minute mark</h3>
+              <div class="outcome-row"><span>Easy</span><strong>{{ summary.timed.easy.solved }} solved · {{ summary.timed.easy.needs_review }} review</strong></div>
+              <div class="outcome-row"><span>Medium</span><strong>{{ summary.timed.medium.solved }} solved · {{ summary.timed.medium.needs_review }} review</strong></div>
+            </article>
+            <article>
+              <p class="eyebrow">FINAL</p>
+              <h3>After your submission</h3>
+              <div class="outcome-row"><span>Easy</span><strong>{{ summary.final.easy.solved }} solved · {{ summary.final.easy.needs_review }} review</strong></div>
+              <div class="outcome-row"><span>Medium</span><strong>{{ summary.final.medium.solved }} solved · {{ summary.final.medium.needs_review }} review</strong></div>
+            </article>
+          </div>
+        </section>
+      {% else %}
+        <section class="problem-nav" aria-label="Assessment Problems">
+          {% for item in responses %}
+            <span class="problem-nav-item {% if item.pk == current_response.pk %}problem-nav-item--active{% endif %} {% if item.has_progress %}problem-nav-item--started{% endif %}">
+              <span>{{ item.selection.position|stringformat:"02d" }}</span>
+              <small>{{ item.selection.slot_kind|title }}</small>
+            </span>
+          {% endfor %}
+        </section>
+
+        <section class="session-card" data-testid="current-problem">
+          <div class="selection-topline">
+            <div class="selection-tags">
+              <span class="difficulty difficulty--{{ current_response.selection.slot_kind }}">{{ current_response.selection.get_slot_kind_display }}</span>
+              <span class="novelty">Problem {{ current_response.selection.position }} of {{ responses|length }}</span>
+            </div>
+          </div>
+          <h2>{{ current_response.selection.problem.title }}</h2>
+          <p class="statement">{{ current_response.selection.problem.statement }}</p>
+        </section>
+
+        <form class="response-form" method="post" data-testid="assessment-response-form">
+          {% csrf_token %}
+          <label for="draft-answer">Your working draft</label>
+          <textarea id="draft-answer" name="draft_answer" rows="12" placeholder="Write your approach or Python solution here...">{{ current_response.draft_answer }}</textarea>
+          <div class="response-fields">
+            <label>
+              Outcome
+              <select name="outcome">
+                {% for value, label in outcomes %}
+                  <option value="{{ value }}" {% if current_response.outcome == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>
+              Result note
+              <input name="result_note" value="{{ current_response.result_note }}" placeholder="What happened?">
+            </label>
+          </div>
+          <div class="session-actions">
+            <button class="secondary-button" type="submit" name="action" value="previous" {% if current_response.selection.position == 1 %}disabled{% endif %}>← Previous</button>
+            <button class="secondary-button" type="submit" name="action" value="save">Save progress</button>
+            {% if current_response.selection.position == responses|length %}
+              <button class="primary-button" type="submit" name="action" value="submit" data-testid="submit-assessment">Submit assessment</button>
+            {% else %}
+              <button class="primary-button" type="submit" name="action" value="next" data-testid="next-problem">Save &amp; next →</button>
+            {% endif %}
+          </div>
+        </form>
+      {% endif %}
+    </main>
+  </body>
+</html>
