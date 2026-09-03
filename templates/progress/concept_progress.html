@@ -1,0 +1,97 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ concept.name }} progress · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'progress/progress.css' %}">
+  </head>
+  <body>
+    <main class="progress-shell" data-testid="concept-progress">
+      <header class="progress-header">
+        <a class="back-link" href="{% url 'curriculum:concept_detail' concept_slug=concept.slug %}">← Back to lesson</a>
+        <p class="eyebrow">{{ concept.topic.name }} / YOUR PROGRESS</p>
+        <h1>{{ concept.name }}</h1>
+        <p class="lesson-summary">{{ concept.summary }}</p>
+      </header>
+
+      <div class="progress-grid">
+        <section class="progress-panel" data-testid="notes-panel" aria-labelledby="notes-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">MAKE IT YOURS</p>
+              <h2 id="notes-heading">Explanation &amp; notes</h2>
+            </div>
+            {% if note and note.updated_at %}
+              <time class="saved-time" datetime="{{ note.updated_at|date:'c' }}">
+                Saved {{ note.updated_at|date:'M j, Y · g:i A' }}
+              </time>
+            {% endif %}
+          </div>
+
+          {% if note_form.errors %}
+            <div class="form-errors" role="alert">{{ note_form.errors }}</div>
+          {% endif %}
+          <form method="post" class="progress-form" data-testid="notes-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="notes">
+            <label for="{{ note_form.body.id_for_label }}">{{ note_form.body.label }}</label>
+            {{ note_form.body }}
+            <p class="field-help">Use your own words. Capture the invariant, a worked example, or the trap you keep hitting.</p>
+            <button class="primary-button" type="submit">Save notes</button>
+          </form>
+
+          {% if note and note.body %}
+            <div class="saved-notes" data-testid="saved-notes">
+              <p class="eyebrow">LAST SAVED VERSION</p>
+              <div class="saved-copy">{{ note.body|linebreaksbr }}</div>
+            </div>
+          {% else %}
+            <p class="empty-copy" data-testid="notes-empty">No personal notes yet. Start with the idea you want to remember.</p>
+          {% endif %}
+        </section>
+
+        <section class="progress-panel progress-panel--accent" data-testid="checkpoint-panel" aria-labelledby="checkpoint-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">RECALL CHECK</p>
+              <h2 id="checkpoint-heading">Can you explain it?</h2>
+            </div>
+            {% if latest_checkpoint %}
+              <time class="saved-time" datetime="{{ latest_checkpoint.submitted_at|date:'c' }}">
+                {{ latest_checkpoint.submitted_at|date:'M j, Y · g:i A' }}
+              </time>
+            {% endif %}
+          </div>
+
+          {% if checkpoint_form.errors %}
+            <div class="form-errors" role="alert">{{ checkpoint_form.errors }}</div>
+          {% endif %}
+          <form method="post" class="progress-form" data-testid="checkpoint-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="checkpoint">
+            <label for="{{ checkpoint_form.confidence.id_for_label }}">{{ checkpoint_form.confidence.label }}</label>
+            {{ checkpoint_form.confidence }}
+            <label for="{{ checkpoint_form.recall_response.id_for_label }}">{{ checkpoint_form.recall_response.label }}</label>
+            {{ checkpoint_form.recall_response }}
+            <p class="field-help">This is a snapshot, not a grade. Submit again after a later revisit to see your recall change.</p>
+            <button class="primary-button" type="submit">Save checkpoint</button>
+          </form>
+
+          {% if latest_checkpoint %}
+            <div class="latest-checkpoint" data-testid="latest-checkpoint">
+              <div class="checkpoint-meta">
+                <span class="eyebrow">LATEST CONFIDENCE</span>
+                <strong>{{ latest_checkpoint.get_confidence_display }}</strong>
+              </div>
+              <p>{{ latest_checkpoint.recall_response|linebreaksbr }}</p>
+            </div>
+          {% else %}
+            <p class="empty-copy" data-testid="checkpoint-empty">No checkpoint recorded yet. Finish the lesson, then recall the idea without looking.</p>
+          {% endif %}
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
