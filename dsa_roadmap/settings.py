@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "problems",
     "practice",
     "history.apps.HistoryConfig",
+    "reviews.apps.ReviewsConfig",
 ]
 
 MIDDLEWARE = [

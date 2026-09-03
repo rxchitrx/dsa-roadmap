@@ -1,0 +1,99 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Review {{ problem.title }} · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'reviews/reviews.css' %}">
+  </head>
+  <body>
+    <main class="review-shell" data-testid="problem-review">
+      <header class="review-header">
+        <a class="back-link" href="{% url 'practice:editor' problem.slug %}">← Back to practice</a>
+        <p class="eyebrow">DSA ROADMAP / RETENTION LOOP</p>
+        <h1>Revisit {{ problem.title }}</h1>
+        <p class="lede">Rate what you could recall today. Your answer sets the next revisit date without treating a passing run as mastery.</p>
+        {% if problem.concept %}<p class="problem-context">{{ problem.concept.topic.name }} · {{ problem.concept.name }}{% if problem.difficulty %} · {{ problem.get_difficulty_display }}{% endif %}</p>{% endif %}
+      </header>
+
+      {% if review_saved %}
+        <p class="notice" role="status" data-testid="review-saved">Review saved. The next revisit is on the schedule.</p>
+      {% endif %}
+
+      <section class="rating-panel" aria-labelledby="rating-heading">
+        <div class="section-heading">
+          <p class="eyebrow">ONE QUICK DECISION</p>
+          <h2 id="rating-heading">How did recall feel?</h2>
+          {% if current_review %}
+            <p class="current-state" data-testid="current-review-state">
+              Current: <strong>{{ current_review.get_rating_display }}</strong> · {{ current_review.due_in_label }} · {{ current_review.due_at|date:"M j, Y" }}
+            </p>
+          {% else %}
+            <p class="current-state" data-testid="current-review-empty">No review scheduled yet. This rating starts the schedule.</p>
+          {% endif %}
+        </div>
+
+        <form method="post" class="rating-form" data-testid="review-rating-form">
+          {% csrf_token %}
+          <div class="rating-actions" role="group" aria-label="Review rating">
+            {% for value, label in review_form.fields.rating.choices %}
+              <button class="rating-button rating-button--{{ value }}" type="submit" name="rating" value="{{ value }}" data-testid="rating-{{ value }}">
+                <strong>{{ label }}</strong>
+                {% if value == 'could_not_solve' %}<span>Bring it back tomorrow</span>{% elif value == 'solved_with_help' %}<span>Return in a few days</span>{% else %}<span>Spread it further out</span>{% endif %}
+              </button>
+            {% endfor %}
+          </div>
+          {% if review_form.rating.errors %}{% for error in review_form.rating.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}{% endif %}
+          <div class="note-field">
+            {{ review_form.note.label_tag }}
+            <p class="field-help">{{ review_form.note.help_text }}</p>
+            {{ review_form.note }}
+            {% for error in review_form.note.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+          </div>
+        </form>
+      </section>
+
+      <section class="evidence-panel" aria-labelledby="evidence-heading">
+        <div class="section-heading">
+          <p class="eyebrow">CONNECTED EVIDENCE</p>
+          <h2 id="evidence-heading">Learning status</h2>
+        </div>
+        {% if learning_status %}
+          <p data-testid="learning-status">{{ learning_status.get_status_display }}</p>
+          <p class="muted">This review is also recorded in the Problem's existing status journal.</p>
+        {% else %}
+          <p class="muted">No Learning Status exists yet. The first rating will create one.</p>
+        {% endif %}
+      </section>
+
+      <section class="history-panel" aria-labelledby="history-heading">
+        <div class="section-heading history-heading">
+          <div>
+            <p class="eyebrow">APPEND-ONLY JOURNAL</p>
+            <h2 id="history-heading">Review history</h2>
+          </div>
+          <span class="history-count">{{ review_history|length }} rating{{ review_history|length|pluralize }}</span>
+        </div>
+        {% if review_history %}
+          <ol class="history-list">
+            {% for event in review_history %}
+              <li class="history-row" data-testid="review-history-event">
+                <div>
+                  <strong>{{ event.get_rating_display }}</strong>
+                  {% if event.note %}<p>{{ event.note }}</p>{% endif %}
+                </div>
+                <div class="history-meta">
+                  <time datetime="{{ event.reviewed_at|date:'c' }}">{{ event.reviewed_at|date:"M j, Y · g:i A" }}</time>
+                  <span>{{ event.interval_days }} day{{ event.interval_days|pluralize }} · due {{ event.due_at|date:"M j, Y" }}</span>
+                </div>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="empty-history" data-testid="review-history-empty">Your first rating will appear here with its next due date.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

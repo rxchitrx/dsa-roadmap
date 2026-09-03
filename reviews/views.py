@@ -1,0 +1,50 @@
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_http_methods
+
+from problems.models import Problem
+
+from .forms import ReviewRatingForm
+from .models import ProblemReview
+from .services import record_review
+
+
+@require_http_methods(["GET", "POST"])
+def problem_review(request, slug):
+    """Show the quick rating action and the Problem's review journal."""
+
+    problem = get_object_or_404(
+        Problem.objects.select_related("concept", "concept__topic"),
+        slug=slug,
+        is_active=True,
+    )
+    current_review = ProblemReview.objects.filter(problem=problem).first()
+    form = ReviewRatingForm(request.POST if request.method == "POST" else None)
+
+    if request.method == "POST" and form.is_valid():
+        record_review(
+            problem,
+            rating=form.cleaned_data["rating"],
+            note=form.cleaned_data["note"],
+        )
+        review_url = reverse("reviews:problem_review", kwargs={"slug": problem.slug})
+        return redirect(f"{review_url}?saved=1")
+
+    history = list(
+        current_review.history.select_related("learning_status_event")
+        if current_review is not None
+        else []
+    )
+    learning_status = getattr(problem, "learning_status", None)
+    return render(
+        request,
+        "reviews/problem_review.html",
+        {
+            "problem": problem,
+            "current_review": current_review,
+            "review_history": history,
+            "learning_status": learning_status,
+            "review_form": form,
+            "review_saved": request.GET.get("saved") == "1",
+        },
+    )

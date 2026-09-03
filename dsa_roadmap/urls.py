@@ -9,5 +9,6 @@ urlpatterns = [
     path("problems/", include("problems.urls")),
     path("practice/", include("practice.urls")),
     path("history/", include("history.urls")),
+    path("reviews/", include("reviews.urls")),
     path("", include("planner.urls")),
 ]
