@@ -233,6 +233,31 @@ h1 {
 .run-cases small { grid-column: 1 / -1; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
 .run-case-source { display: inline-block; margin-right: 5px; color: var(--amber); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 
+.learning-status-panel { border-top: 1px solid var(--border); padding: 24px; background: #1e1b18; }
+.learning-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.learning-status-header h2 { margin-bottom: 5px; font-size: 1.2rem; letter-spacing: -0.035em; }
+.learning-status-saved { flex: 0 0 auto; border-radius: 999px; padding: 7px 10px; background: rgba(135, 181, 141, 0.1); color: var(--green); font-size: 0.76rem; font-weight: 750; white-space: nowrap; }
+.learning-status-form { margin-top: 20px; }
+.learning-status-fields { display: grid; grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.3fr); gap: 14px; }
+.learning-status-field label { display: block; margin-bottom: 7px; color: var(--text); font-size: 0.82rem; font-weight: 750; }
+.learning-status-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; background: #151412; color: var(--text); font: inherit; }
+.learning-status-select:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+.learning-status-field .learning-status-reason { min-height: 92px; }
+.learning-status-field.has-error .learning-status-select,
+.learning-status-field.has-error .learning-status-reason { border-color: var(--red); }
+.learning-status-form > .run-button { margin-top: 15px; }
+.learning-status-history { margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px; }
+.learning-status-history-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.history-note { color: var(--muted); font-size: 0.75rem; }
+.status-event-list { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.status-event { border: 1px solid var(--border); border-radius: 9px; padding: 13px 14px; background: var(--surface-raised); }
+.status-event-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.status-event-heading strong { color: var(--amber-soft); font-size: 0.82rem; }
+.status-event-heading time { color: var(--muted); font-size: 0.72rem; }
+.status-event p { margin: 7px 0 0; color: var(--text); font-size: 0.82rem; line-height: 1.5; }
+.status-event small { display: block; margin-top: 7px; color: var(--muted); font-size: 0.73rem; line-height: 1.4; }
+.status-history-empty { margin: 12px 0 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+
 .reflection-prompt {
   display: flex;
   align-items: center;
@@ -307,6 +332,11 @@ h1 {
   .reflection-prompt { align-items: flex-start; flex-direction: column; }
   .custom-tests-header { display: block; }
   .custom-tests-actions { justify-content: flex-start; margin-top: 14px; }
+  .learning-status-fields { grid-template-columns: 1fr; }
+  .learning-status-header { display: block; }
+  .learning-status-saved { display: inline-block; margin-top: 14px; }
+  .learning-status-history-header { display: block; }
+  .history-note { display: block; margin-top: 6px; }
 }
 
 @media (max-width: 560px) {
@@ -315,7 +345,8 @@ h1 {
   .context-panel,
   .editor-footer,
   .custom-tests-panel,
-  .run-panel { padding-left: 17px; padding-right: 17px; }
+  .run-panel,
+  .learning-status-panel { padding-left: 17px; padding-right: 17px; }
   .code-editor { min-height: 420px; padding: 17px; }
   .workspace-heading { display: block; }
   .workspace-actions { align-items: center; flex-wrap: wrap; margin-top: 14px; }

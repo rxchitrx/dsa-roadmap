@@ -10,6 +10,9 @@ from problems.models import Problem
 from .models import CustomTestCase
 from .models import PracticeRun
 from .models import SolutionReflection
+from .forms import LearningStatusForm
+from .services import get_or_create_learning_status
+from .services import set_learning_status
 from .services import CustomTestValidationError
 from .services import get_or_create_draft
 from .services import run_visible_tests
@@ -26,9 +29,7 @@ def _active_problem(slug: str) -> Problem:
     )
 
 
-@require_GET
-def editor(request, slug):
-    problem = _active_problem(slug)
+def _editor_context(problem, *, learning_status_form=None, status_saved=False):
     draft, _created = get_or_create_draft(problem)
     custom_tests = list(CustomTestCase.objects.filter(problem=problem))
     latest_run = (
@@ -36,24 +37,46 @@ def editor(request, slug):
         .select_related("reflection")
         .first()
     )
+    learning_status = get_or_create_learning_status(problem)
+    status_history = list(
+        learning_status.events.select_related(
+            "problem_snapshot",
+            "practice_run",
+            "reflection",
+        )
+    )
+    return {
+        "problem": problem,
+        "draft": draft,
+        "latest_run": latest_run,
+        "latest_reflection": getattr(latest_run, "reflection", None),
+        "custom_tests": custom_tests,
+        "custom_tests_data": [
+            {
+                **_custom_test_response(case),
+                "input_json": json.dumps(case.input_data),
+                "expected_json": json.dumps(case.expected_output),
+            }
+            for case in custom_tests
+        ],
+        "learning_status": learning_status,
+        "learning_status_form": learning_status_form
+        or LearningStatusForm(instance=learning_status),
+        "learning_status_history": status_history,
+        "learning_status_saved": status_saved,
+    }
+
+
+@require_GET
+def editor(request, slug):
+    problem = _active_problem(slug)
     return render(
         request,
         "practice/editor.html",
-        {
-            "problem": problem,
-            "draft": draft,
-            "latest_run": latest_run,
-            "latest_reflection": getattr(latest_run, "reflection", None),
-            "custom_tests": custom_tests,
-            "custom_tests_data": [
-                {
-                    **_custom_test_response(case),
-                    "input_json": json.dumps(case.input_data),
-                    "expected_json": json.dumps(case.expected_output),
-                }
-                for case in custom_tests
-            ],
-        },
+        _editor_context(
+            problem,
+            status_saved=request.GET.get("status_saved") == "1",
+        ),
     )
 
 
@@ -67,6 +90,8 @@ def reflection(request, slug, run_id):
         pk=run_id,
         problem=problem,
     )
+
+
     existing_reflection = SolutionReflection.objects.filter(
         practice_run=practice_run,
     ).first()
@@ -100,6 +125,43 @@ def reflection(request, slug, run_id):
             "reflection_form": form,
             "reflection_saved": request.GET.get("saved") == "1",
         },
+    )
+
+
+@require_POST
+def update_learning_status(request, slug):
+    """Save one explicit status decision and return to the practice editor."""
+
+    problem = _active_problem(slug)
+    learning_status = get_or_create_learning_status(problem)
+    form = LearningStatusForm(request.POST, instance=learning_status)
+
+    if form.is_valid():
+        latest_run = (
+            PracticeRun.objects.filter(problem=problem)
+            .select_related("reflection")
+            .first()
+        )
+        selected_status = form.cleaned_data["status"]
+        evidence_run = (
+            latest_run
+            if selected_status != learning_status.Status.UNSEEN
+            else None
+        )
+        set_learning_status(
+            problem,
+            status=selected_status,
+            reason=form.cleaned_data["reason"],
+            practice_run=evidence_run,
+            reflection=getattr(evidence_run, "reflection", None),
+        )
+        editor_url = reverse("practice:editor", kwargs={"slug": problem.slug})
+        return redirect(f"{editor_url}?status_saved=1")
+
+    return render(
+        request,
+        "practice/editor.html",
+        _editor_context(problem, learning_status_form=form),
     )
 
 

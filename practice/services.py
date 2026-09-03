@@ -10,13 +10,15 @@ import tempfile
 import time
 from dataclasses import dataclass
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from problems.models import Problem
 
 from .models import CustomTestCase
 from .models import ProblemDraft
-from .models import PracticeRun
+from .models import LearningStatus, LearningStatusEvent, PracticeRun
+from .models import ProblemLearningStatus
 
 
 MAX_SUBMISSION_LENGTH = 20_000
@@ -24,6 +26,87 @@ RUN_TIMEOUT_SECONDS = 1.5
 MAX_CUSTOM_TEST_CASES = 20
 MAX_CUSTOM_LABEL_LENGTH = 120
 MAX_CUSTOM_JSON_LENGTH = 10_000
+
+
+def get_or_create_learning_status(problem: Problem) -> ProblemLearningStatus:
+    """Return the current status without creating a history event."""
+
+    if not isinstance(problem, Problem):
+        raise TypeError("problem must be a Problem instance")
+    if not problem.pk:
+        raise ValidationError("Save the Problem before tracking Learning Status.")
+
+    status, _created = ProblemLearningStatus.objects.get_or_create(
+        problem=problem,
+        defaults={"status": LearningStatus.UNSEEN},
+    )
+    return status
+
+
+def _validate_learning_status(status: str) -> str:
+    valid_statuses = {value for value, _label in LearningStatus.choices}
+    if status not in valid_statuses:
+        raise ValidationError({"status": f"Unknown Learning Status: {status}."})
+    return status
+
+
+@transaction.atomic
+def set_learning_status(
+    problem: Problem,
+    *,
+    status: str,
+    reason: str,
+    practice_run: PracticeRun | None = None,
+    reflection=None,
+) -> tuple[ProblemLearningStatus, LearningStatusEvent]:
+    """Persist one explicit status decision without inferring it from a run."""
+
+    if not isinstance(problem, Problem):
+        raise TypeError("problem must be a Problem instance")
+    if not problem.pk:
+        raise ValidationError("Save the Problem before tracking Learning Status.")
+    status = _validate_learning_status(status)
+    reason = reason.strip() if isinstance(reason, str) else ""
+    if not reason:
+        raise ValidationError(
+            {"reason": "Add one short reason for this Learning Status decision."}
+        )
+
+    if practice_run is not None and practice_run.problem_id != problem.pk:
+        raise ValidationError("The evidence run must belong to this Problem.")
+    if reflection is not None:
+        if reflection.practice_run.problem_id != problem.pk:
+            raise ValidationError("The evidence reflection must belong to this Problem.")
+        if practice_run is not None and reflection.practice_run_id != practice_run.pk:
+            raise ValidationError("The reflection must belong to the evidence run.")
+        if practice_run is None:
+            practice_run = reflection.practice_run
+
+    from problems.services import ensure_problem_snapshot
+
+    learning_status = get_or_create_learning_status(problem)
+    learning_status = ProblemLearningStatus.objects.select_for_update().get(
+        pk=learning_status.pk
+    )
+    problem_snapshot, _created = ensure_problem_snapshot(problem)
+    event = LearningStatusEvent.objects.create(
+        learning_status=learning_status,
+        problem_snapshot=problem_snapshot,
+        practice_run=practice_run,
+        reflection=reflection,
+        status=status,
+        reason=reason,
+    )
+
+    learning_status.status = status
+    learning_status.reason = reason
+    learning_status.save(update_fields=("status", "reason", "updated_at"))
+    return learning_status, event
+
+
+# Keep the event-oriented name available to callers that think in terms of an
+# append-only journal rather than a mutable current-status record.
+record_learning_status = set_learning_status
 
 
 @dataclass(frozen=True)

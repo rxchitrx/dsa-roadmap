@@ -13,6 +13,11 @@ urlpatterns = [
         name="reflection",
     ),
     path(
+        "<slug:slug>/learning-status/",
+        views.update_learning_status,
+        name="update_learning_status",
+    ),
+    path(
         "<slug:slug>/custom-tests/save/",
         views.save_problem_custom_tests,
         name="save_custom_tests",

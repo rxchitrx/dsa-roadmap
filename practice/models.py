@@ -146,3 +146,83 @@ class SolutionReflection(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class LearningStatus(models.TextChoices):
+    """The learner's explicit judgment about current problem mastery."""
+
+    UNSEEN = "unseen", "Unseen"
+    ATTEMPTED = "attempted", "Attempted — couldn't solve yet"
+    SOLVED_WITH_HELP = "solved_with_help", "Solved with help"
+    SOLVED_INDEPENDENTLY = "solved_independently", "Solved independently"
+
+
+class ProblemLearningStatus(models.Model):
+    """The current explicit Learning Status for one catalog Problem."""
+
+    Status = LearningStatus
+
+    problem = models.OneToOneField(
+        "problems.Problem",
+        on_delete=models.CASCADE,
+        related_name="learning_status",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=LearningStatus.choices,
+        default=LearningStatus.UNSEEN,
+    )
+    reason = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at", "-id")
+
+    def __str__(self) -> str:
+        return f"{self.problem.title} learning status ({self.get_status_display()})"
+
+
+class LearningStatusEvent(models.Model):
+    """An append-only record of one learner-authored status decision."""
+
+    learning_status = models.ForeignKey(
+        ProblemLearningStatus,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    problem_snapshot = models.ForeignKey(
+        "problems.ProblemSnapshot",
+        on_delete=models.PROTECT,
+        related_name="learning_status_events",
+    )
+    practice_run = models.ForeignKey(
+        PracticeRun,
+        on_delete=models.SET_NULL,
+        related_name="learning_status_events",
+        blank=True,
+        null=True,
+    )
+    reflection = models.ForeignKey(
+        SolutionReflection,
+        on_delete=models.SET_NULL,
+        related_name="learning_status_events",
+        blank=True,
+        null=True,
+    )
+    status = models.CharField(max_length=32, choices=LearningStatus.choices)
+    reason = models.TextField()
+    changed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-changed_at", "-id")
+        indexes = [
+            models.Index(fields=("learning_status", "-changed_at")),
+            models.Index(fields=("status", "-changed_at")),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.learning_status.problem.title} status event "
+            f"({self.get_status_display()})"
+        )

@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import SolutionReflection
+from .models import ProblemLearningStatus, SolutionReflection
 
 
 class SolutionReflectionForm(forms.ModelForm):
@@ -54,3 +54,38 @@ class SolutionReflectionForm(forms.ModelForm):
         if isinstance(notes, str):
             cleaned_data["notes"] = notes.strip()
         return cleaned_data
+
+
+class LearningStatusForm(forms.ModelForm):
+    """Let the learner record a status and the evidence behind the decision."""
+
+    class Meta:
+        model = ProblemLearningStatus
+        fields = ("status", "reason")
+        labels = {
+            "status": "Current Learning Status",
+            "reason": "Why this status is accurate now",
+        }
+        help_texts = {
+            "status": "This is your judgment, not an automatic interpretation of test results.",
+            "reason": "Name the evidence: what you could recall, where you needed help, or what you can now reproduce.",
+        }
+        widgets = {
+            "status": forms.Select(attrs={"class": "learning-status-select"}),
+            "reason": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "class": "reflection-textarea learning-status-reason",
+                    "placeholder": "Example: I could explain the invariant without looking, but needed a hint for the edge case.",
+                }
+            ),
+        }
+
+    def clean_reason(self):
+        reason = self.cleaned_data.get("reason", "")
+        reason = reason.strip() if isinstance(reason, str) else ""
+        if not reason:
+            raise forms.ValidationError(
+                "Add one short reason so the next revisit has useful context."
+            )
+        return reason

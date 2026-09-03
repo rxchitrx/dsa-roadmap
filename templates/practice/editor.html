@@ -149,6 +149,59 @@
             </div>
           </section>
 
+          <section class="learning-status-panel" data-testid="learning-status-panel" aria-labelledby="learning-status-heading">
+            <div class="learning-status-header">
+              <div>
+                <p class="section-label">Your judgment</p>
+                <h2 id="learning-status-heading">Learning Status: {{ learning_status.get_status_display }}</h2>
+                <p class="run-help">A test result tells you what this code did on visible cases. Learning Status tells you what you can reproduce and explain. Passing runs never mark independent mastery automatically.</p>
+              </div>
+              {% if learning_status_saved %}<span class="learning-status-saved" role="status" data-testid="learning-status-saved">Status history saved</span>{% endif %}
+            </div>
+
+            <form method="post" action="{% url 'practice:update_learning_status' problem.slug %}" class="learning-status-form" data-testid="learning-status-form" novalidate>
+              {% csrf_token %}
+              <div class="learning-status-fields">
+                <div class="learning-status-field{% if learning_status_form.status.errors %} has-error{% endif %}">
+                  {{ learning_status_form.status.label_tag }}
+                  {% if learning_status_form.status.help_text %}<p class="field-help">{{ learning_status_form.status.help_text }}</p>{% endif %}
+                  {{ learning_status_form.status }}
+                  {% for error in learning_status_form.status.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="learning-status-field{% if learning_status_form.reason.errors %} has-error{% endif %}">
+                  {{ learning_status_form.reason.label_tag }}
+                  {% if learning_status_form.reason.help_text %}<p class="field-help">{{ learning_status_form.reason.help_text }}</p>{% endif %}
+                  {{ learning_status_form.reason }}
+                  {% for error in learning_status_form.reason.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                </div>
+              </div>
+              <button class="run-button" type="submit" data-testid="save-learning-status">Save Learning Status</button>
+            </form>
+
+            <div class="learning-status-history" data-testid="learning-status-history">
+              <div class="learning-status-history-header">
+                <p class="section-label">Status history</p>
+                <span class="history-note">Every decision stays attached to its reason and time.</span>
+              </div>
+              {% if learning_status_history %}
+                <ol class="status-event-list">
+                  {% for event in learning_status_history %}
+                    <li class="status-event" data-testid="learning-status-event">
+                      <div class="status-event-heading">
+                        <strong>{{ event.get_status_display }}</strong>
+                        <time datetime="{{ event.changed_at|date:'c' }}">{{ event.changed_at|date:"M j, Y · g:i A" }}</time>
+                      </div>
+                      <p>{{ event.reason }}</p>
+                      {% if event.practice_run %}<small>Recorded separately from the {{ event.practice_run.get_status_display|lower }} execution result.</small>{% endif %}
+                    </li>
+                  {% endfor %}
+                </ol>
+              {% else %}
+                <p class="status-history-empty">No decision recorded yet. Unseen is the starting context until you choose a status.</p>
+              {% endif %}
+            </div>
+          </section>
+
           {% if latest_run %}
             <section class="reflection-prompt" data-testid="reflection-prompt" aria-labelledby="reflection-prompt-heading">
               <div>
