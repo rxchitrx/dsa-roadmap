@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Today · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'reviews/reviews.css' %}">
     <link rel="stylesheet" href="{% static 'planner/today.css' %}">
     <link rel="stylesheet" href="{% static 'planner/timer.css' %}">
     <script src="{% static 'planner/timer.js' %}" defer></script>
@@ -129,6 +130,48 @@
           </div>
         {% endif %}
       </section>
+
+      {% if is_weekday %}
+        <section class="review-queue-panel" aria-labelledby="today-review-heading" data-testid="today-review-queue">
+          <div class="review-queue-heading">
+            <div>
+              <p class="eyebrow">RETENTION LOOP</p>
+              <h2 id="today-review-heading">Due reviews</h2>
+              <p class="review-queue-copy">Re-solve these older Problems before adding more to your queue.</p>
+            </div>
+            <a class="secondary-button" href="{% url 'reviews:due_queue' %}">Open queue</a>
+          </div>
+
+          {% if due_reviews %}
+            <ol class="review-queue-list">
+              {% for review in due_reviews %}
+                <li class="review-queue-item" data-testid="today-due-review">
+                  <div>
+                    <span class="review-queue-state{% if review.is_overdue %} review-queue-state--overdue{% endif %}" data-testid="review-due-state">
+                      {{ review.queue_due_label }}
+                    </span>
+                    <h3><a href="{% url 'reviews:problem_review' slug=review.problem.slug %}">{{ review.problem.title }}</a></h3>
+                    <p class="review-queue-status" data-testid="review-learning-status">
+                      Learning Status:
+                      {% if review.current_learning_status %}
+                        {{ review.current_learning_status.get_status_display }}
+                      {% else %}
+                        Unseen
+                      {% endif %}
+                    </p>
+                  </div>
+                  <a class="review-queue-action" data-testid="review-action" href="{% url 'reviews:problem_review' slug=review.problem.slug %}">Review now →</a>
+                </li>
+              {% endfor %}
+            </ol>
+          {% else %}
+            <div class="review-queue-empty" data-testid="today-review-queue-empty">
+              <strong>Nothing is due today.</strong>
+              <span>Your next revisit will appear here when it is ready.</span>
+            </div>
+          {% endif %}
+        </section>
+      {% endif %}
     </main>
   </body>
 </html>

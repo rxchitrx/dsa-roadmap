@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -51,6 +51,28 @@ class ProblemReview(models.Model):
         if self.is_due:
             return "Due now"
         return f"Due in {self.interval_days} day{'s' if self.interval_days != 1 else ''}"
+
+    @property
+    def is_overdue(self) -> bool:
+        """Whether this review was due before the learner's current day."""
+
+        due_date = timezone.localtime(self.due_at).date()
+        return due_date < timezone.localdate()
+
+    @property
+    def queue_due_label(self) -> str:
+        """Return the label used in the learner's due-review queue."""
+
+        return "Overdue" if self.is_overdue else "Due today"
+
+    @property
+    def current_learning_status(self):
+        """Return the current status without creating an unseen status row."""
+
+        try:
+            return self.problem.learning_status
+        except ObjectDoesNotExist:
+            return None
 
 
 class ProblemReviewEvent(models.Model):

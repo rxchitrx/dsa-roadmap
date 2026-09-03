@@ -177,3 +177,22 @@ def review_history(problem: Problem):
         "review",
         "learning_status_event",
     )
+
+
+def due_review_queue(*, now: datetime | None = None):
+    """Return active Problem Reviews that are due, oldest first.
+
+    The explicit ordering keeps the queue stable between refreshes: older
+    reviews lead, then same-time reviews use the Problem title and id as
+    deterministic tie-breakers. Future reviews never enter this queue.
+    """
+
+    now = now or timezone.now()
+    return (
+        ProblemReview.objects.filter(
+            due_at__lte=now,
+            problem__is_active=True,
+        )
+        .select_related("problem", "problem__learning_status")
+        .order_by("due_at", "problem__title", "problem_id")
+    )

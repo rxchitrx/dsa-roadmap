@@ -1,12 +1,27 @@
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from problems.models import Problem
 
 from .forms import ReviewRatingForm
 from .models import ProblemReview
-from .services import record_review
+from .services import due_review_queue, record_review
+
+
+def due_queue(request):
+    """Show every active Problem Review due for the current moment."""
+
+    due_reviews = due_review_queue()
+    return render(
+        request,
+        "reviews/due_queue.html",
+        {
+            "due_reviews": due_reviews,
+            "queue_checked_at": timezone.now(),
+        },
+    )
 
 
 @require_http_methods(["GET", "POST"])

@@ -5,6 +5,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from reviews.services import due_review_queue
+
 from .forms import StopWorkSessionForm, StudyBlockEditForm
 from .models import RestDay, StudyBlock, WorkSession
 from .services import (
@@ -76,6 +78,7 @@ def _today_context(today_date=None, timer_error=None):
     study_block = (
         study_blocks[0] if study_blocks else None
     )
+    is_weekday = today_date.weekday() < 5
     return {
         "today": today_date,
         "study_block": study_block,
@@ -84,6 +87,8 @@ def _today_context(today_date=None, timer_error=None):
         "suppressed_block_count": all_study_blocks.count() if rest_day else 0,
         "routine_generated": is_weekly_routine_complete(today_date),
         "timer_error": timer_error,
+        "is_weekday": is_weekday,
+        "due_reviews": due_review_queue() if is_weekday else [],
     }
 
 
