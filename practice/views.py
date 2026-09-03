@@ -1,18 +1,21 @@
 import json
 
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_GET, require_POST
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from problems.models import Problem
 
 from .models import CustomTestCase
 from .models import PracticeRun
+from .models import SolutionReflection
 from .services import CustomTestValidationError
 from .services import get_or_create_draft
 from .services import run_visible_tests
 from .services import save_custom_tests
 from .services import save_draft
+from .forms import SolutionReflectionForm
 
 
 def _active_problem(slug: str) -> Problem:
@@ -28,13 +31,19 @@ def editor(request, slug):
     problem = _active_problem(slug)
     draft, _created = get_or_create_draft(problem)
     custom_tests = list(CustomTestCase.objects.filter(problem=problem))
+    latest_run = (
+        PracticeRun.objects.filter(problem=problem)
+        .select_related("reflection")
+        .first()
+    )
     return render(
         request,
         "practice/editor.html",
         {
             "problem": problem,
             "draft": draft,
-            "latest_run": PracticeRun.objects.filter(problem=problem).first(),
+            "latest_run": latest_run,
+            "latest_reflection": getattr(latest_run, "reflection", None),
             "custom_tests": custom_tests,
             "custom_tests_data": [
                 {
@@ -44,6 +53,52 @@ def editor(request, slug):
                 }
                 for case in custom_tests
             ],
+        },
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def reflection(request, slug, run_id):
+    """Write or edit the reflection attached to one exact practice run."""
+
+    problem = _active_problem(slug)
+    practice_run = get_object_or_404(
+        PracticeRun.objects.select_related("problem"),
+        pk=run_id,
+        problem=problem,
+    )
+    existing_reflection = SolutionReflection.objects.filter(
+        practice_run=practice_run,
+    ).first()
+    form = SolutionReflectionForm(
+        request.POST if request.method == "POST" else None,
+        instance=existing_reflection,
+    )
+
+    if request.method == "POST" and form.is_valid():
+        saved_reflection = form.save(commit=False)
+        saved_reflection.practice_run = practice_run
+        saved_reflection.save()
+        reflection_url = reverse(
+            "practice:reflection",
+            kwargs={"slug": problem.slug, "run_id": practice_run.pk},
+        )
+        return redirect(f"{reflection_url}?saved=1")
+
+    history_snapshot = getattr(practice_run, "history_entry", None)
+    return render(
+        request,
+        "practice/reflection.html",
+        {
+            "problem": problem,
+            "practice_run": practice_run,
+            "code_snapshot": (
+                history_snapshot.code_snapshot
+                if history_snapshot is not None
+                else practice_run.code
+            ),
+            "reflection_form": form,
+            "reflection_saved": request.GET.get("saved") == "1",
         },
     )
 

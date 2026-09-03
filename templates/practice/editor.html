@@ -148,6 +148,24 @@
               {% endif %}
             </div>
           </section>
+
+          {% if latest_run %}
+            <section class="reflection-prompt" data-testid="reflection-prompt" aria-labelledby="reflection-prompt-heading">
+              <div>
+                <p class="section-label">After this attempt</p>
+                <h2 id="reflection-prompt-heading">Capture the correction</h2>
+                <p>Turn this run into a reusable lesson: rewrite the approach, name the cause, and choose one next correction.</p>
+              </div>
+              <div class="reflection-prompt-actions">
+                {% if latest_reflection %}<span class="reflection-status">Saved {{ latest_reflection.updated_at|date:"M j, Y · g:i A" }}</span>{% endif %}
+                <a
+                  class="secondary-button"
+                  data-testid="reflection-link"
+                  href="{% url 'practice:reflection' problem.slug latest_run.pk %}"
+                >{% if latest_reflection %}Edit reflection{% else %}Reflect on this run{% endif %}</a>
+              </div>
+            </section>
+          {% endif %}
         </section>
 
         <aside class="context-panel" aria-label="Problem context">

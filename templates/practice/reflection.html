@@ -1,0 +1,69 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reflect on {{ problem.title }} · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'practice/editor.css' %}">
+  </head>
+  <body>
+    <main class="practice-shell reflection-shell" data-testid="reflection-page">
+      <header class="practice-header">
+        <div>
+          <a class="back-link" href="{% url 'practice:editor' problem.slug %}">← Back to practice</a>
+          <p class="eyebrow">DSA ROADMAP / POST-RUN REFLECTION</p>
+          <h1>Make this attempt useful later.</h1>
+          <p class="problem-context">{{ problem.title }} · {{ practice_run.get_status_display }} · {{ practice_run.created_at|date:"M j, Y · g:i A" }}</p>
+        </div>
+      </header>
+
+      {% if reflection_saved %}
+        <p class="reflection-saved" role="status" data-testid="reflection-saved">Reflection saved. Future-you has something concrete to revisit.</p>
+      {% endif %}
+
+      <div class="reflection-layout">
+        <section class="reflection-card run-snapshot" aria-labelledby="snapshot-heading">
+          <p class="section-label">Run snapshot</p>
+          <h2 id="snapshot-heading">{{ practice_run.get_status_display }}</h2>
+          <p class="run-summary">{{ practice_run.summary }}</p>
+          {% if practice_run.message %}<p class="run-message">{{ practice_run.message }}</p>{% endif %}
+          <div class="snapshot-stat-row">
+            <span><strong>{{ practice_run.passed_tests }}</strong> passed</span>
+            <span><strong>{{ practice_run.total_tests }}</strong> visible tests</span>
+            <span><strong>{{ practice_run.duration_ms }}ms</strong> run time</span>
+          </div>
+          <p class="section-label snapshot-code-label">Code snapshot</p>
+          <pre class="snapshot-code" data-testid="code-snapshot"><code>{{ code_snapshot }}</code></pre>
+        </section>
+
+        <section class="reflection-card" aria-labelledby="reflection-heading">
+          <p class="section-label">Short recall loop</p>
+          <h2 id="reflection-heading">Write the lesson in your own words</h2>
+          <p class="reflection-intro">Keep it specific enough that you can act on it when this pattern appears again.</p>
+
+          <form method="post" class="reflection-form" data-testid="reflection-form" novalidate>
+            {% csrf_token %}
+            {% if reflection_form.non_field_errors %}
+              <div class="form-error" role="alert">
+                {% for error in reflection_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+              </div>
+            {% endif %}
+            {% for field in reflection_form %}
+              <div class="reflection-field{% if field.errors %} has-error{% endif %}">
+                {{ field.label_tag }}
+                {% if field.help_text %}<p class="field-help">{{ field.help_text }}</p>{% endif %}
+                {{ field }}
+                {% for error in field.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+              </div>
+            {% endfor %}
+            <div class="reflection-actions">
+              <button class="run-button" type="submit" data-testid="save-reflection">Save reflection</button>
+              <a class="text-button reflection-cancel" href="{% url 'practice:editor' problem.slug %}">Back to practice</a>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

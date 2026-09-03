@@ -8,6 +8,11 @@ app_name = "practice"
 urlpatterns = [
     path("<slug:slug>/run/", views.run_problem_tests, name="run_tests"),
     path(
+        "<slug:slug>/runs/<int:run_id>/reflection/",
+        views.reflection,
+        name="reflection",
+    ),
+    path(
         "<slug:slug>/custom-tests/save/",
         views.save_problem_custom_tests,
         name="save_custom_tests",

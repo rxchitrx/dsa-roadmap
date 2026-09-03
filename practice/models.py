@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -102,3 +103,46 @@ class PracticeRun(models.Model):
         if self.total_tests:
             return f"{self.passed_tests} of {self.total_tests} visible tests passed."
         return self.get_status_display()
+
+
+class SolutionReflection(models.Model):
+    """A learner's structured rewrite of one completed practice run."""
+
+    practice_run = models.OneToOneField(
+        PracticeRun,
+        on_delete=models.CASCADE,
+        related_name="reflection",
+    )
+    rewritten_approach = models.TextField()
+    complexity = models.TextField()
+    mistake_cause = models.TextField()
+    next_correction = models.TextField()
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at", "-id")
+
+    def __str__(self) -> str:
+        return f"Reflection for {self.practice_run.problem.title} run #{self.practice_run_id}"
+
+    def clean(self) -> None:
+        required_fields = {
+            "rewritten_approach": "Write the approach you would use next time.",
+            "complexity": "Record the time and space complexity.",
+            "mistake_cause": "Name the cause of the mistake or hesitation.",
+            "next_correction": "Write one concrete correction for your next attempt.",
+        }
+        errors = {
+            field: message
+            for field, message in required_fields.items()
+            if not isinstance(getattr(self, field, None), str)
+            or not getattr(self, field).strip()
+        }
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
