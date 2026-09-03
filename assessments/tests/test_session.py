@@ -208,6 +208,87 @@ def test_submit_inside_window_records_completed_timed_result(assessment_session_
 
 
 @pytest.mark.django_db
+def test_fallback_responses_have_a_separate_score_summary(db):
+    current_week_problems = make_assessment_fixture()
+    Problem.objects.filter(pk__in=[problem.pk for problem in current_week_problems]).delete()
+
+    older_topic = Topic.objects.create(
+        name="Stacks",
+        slug="fallback-stacks",
+        description="Older fallback assessment fixtures.",
+    )
+    older_concept = Concept.objects.create(
+        topic=older_topic,
+        name="Stack Basics",
+        slug="fallback-stack-basics",
+        order=1,
+        summary="Use last-in-first-out state.",
+        intuition="The newest item is the first one removed.",
+        explanation="A stack exposes push and pop at one end.",
+        complexity_notes="Push and pop are O(1).",
+        implementation_guidance="Name the top of the stack.",
+        common_traps="Popping an empty stack.",
+        guided_practice="Trace three pushes and two pops.",
+        checkpoint="Which item is visible at the top after every operation?",
+    )
+    StudyBlock.objects.create(
+        date=WEEK_START - timedelta(days=7),
+        week_start=WEEK_START - timedelta(days=7),
+        routine_key="0-concept",
+        title="Learn one older concept",
+        planned_minutes=30,
+        assigned_concept=older_concept,
+        status=StudyBlock.Status.COMPLETED,
+    )
+    Problem.objects.create(
+        concept=older_concept,
+        title="Fallback Easy",
+        slug="fallback-easy",
+        statement="An older easy assessment problem.",
+        difficulty=Problem.Difficulty.EASY,
+        source_name="Fixture",
+    )
+    Problem.objects.create(
+        concept=older_concept,
+        title="Fallback Medium One",
+        slug="fallback-medium-one",
+        statement="An older medium assessment problem.",
+        difficulty=Problem.Difficulty.MEDIUM,
+        source_name="Fixture",
+    )
+    Problem.objects.create(
+        concept=older_concept,
+        title="Fallback Medium Two",
+        slug="fallback-medium-two",
+        statement="Another older medium assessment problem.",
+        difficulty=Problem.Difficulty.MEDIUM,
+        source_name="Fixture",
+    )
+
+    session = start_saturday_assessment(WEEK_START, STARTED_AT)
+    for position, outcome in (
+        (1, AssessmentResponse.Outcome.SOLVED),
+        (2, AssessmentResponse.Outcome.SOLVED),
+        (3, AssessmentResponse.Outcome.NEEDS_REVIEW),
+    ):
+        save_assessment_response(
+            session,
+            position,
+            outcome=outcome,
+            now=STARTED_AT + timedelta(minutes=position),
+        )
+
+    completed = submit_assessment(session, STARTED_AT + timedelta(minutes=10))
+
+    assert completed.final_summary["final"]["easy"]["total"] == 0
+    assert completed.final_summary["final"]["medium"]["total"] == 0
+    assert completed.final_summary["final"]["fallback"]["total"] == 3
+    assert completed.final_summary["final"]["fallback"]["easy"]["solved"] == 1
+    assert completed.final_summary["final"]["fallback"]["medium"]["solved"] == 1
+    assert completed.final_summary["final"]["fallback"]["medium"]["needs_review"] == 1
+
+
+@pytest.mark.django_db
 def test_invalid_navigation_position_is_rejected(assessment_session_fixture):
     session, _pool = assessment_session_fixture
 

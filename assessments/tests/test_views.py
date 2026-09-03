@@ -112,6 +112,56 @@ def test_saturday_route_shows_sparse_state(client, assessment_fixture):
 
 @pytest.mark.django_db
 @override_settings(ROOT_URLCONF="assessments.tests.urls")
+def test_saturday_route_labels_fallback_problems_and_source_reason(
+    client,
+    assessment_fixture,
+):
+    week_start, problems = assessment_fixture
+    Problem.objects.filter(pk__in=[problems[1].pk, problems[2].pk]).delete()
+    older_topic = Topic.objects.create(
+        name="Stacks",
+        slug="view-fallback-stacks",
+        description="Fallback view fixtures.",
+    )
+    older_concept = Concept.objects.create(
+        topic=older_topic,
+        name="Stack Basics",
+        slug="view-fallback-stack-basics",
+        order=1,
+        summary="Use last-in-first-out state.",
+        intuition="The newest item is the first one removed.",
+        explanation="A stack exposes push and pop at one end.",
+        complexity_notes="Push and pop are O(1).",
+        implementation_guidance="Name the top of the stack.",
+        common_traps="Popping an empty stack.",
+        guided_practice="Trace three pushes and two pops.",
+        checkpoint="Which item is visible at the top?",
+    )
+    for index in range(2):
+        Problem.objects.create(
+            concept=older_concept,
+            title=f"View fallback medium {index}",
+            slug=f"view-fallback-medium-{index}",
+            statement="An older fallback assessment problem.",
+            difficulty=Problem.Difficulty.MEDIUM,
+            source_name="Fixture",
+        )
+
+    response = client.get(
+        reverse("assessments:saturday_pool"),
+        {"week": week_start.isoformat()},
+    )
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert 'data-testid="fallback-pool"' in body
+    assert body.count('data-testid="assessment-selection"') == 3
+    assert body.count('data-testid="fallback-source"') == 2
+    assert "current-week studied Concept pool had only 0 eligible medium" in body
+
+
+@pytest.mark.django_db
+@override_settings(ROOT_URLCONF="assessments.tests.urls")
 def test_saturday_route_rejects_invalid_week(client):
     response = client.get(
         reverse("assessments:saturday_pool"),

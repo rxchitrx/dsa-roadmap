@@ -25,7 +25,9 @@
           <h2>{{ pool.selected_count }} of {{ pool.requested_problem_count }} Problems</h2>
           <p class="summary-meta">{{ pool.mix_label }} · {{ pool.duration_minutes }} minutes</p>
         </div>
-        {% if pool.is_sparse %}
+        {% if pool.has_fallback %}
+          <span class="status status--fallback" data-testid="fallback-pool">Includes older-Concept fallback</span>
+        {% elif pool.is_sparse %}
           <span class="status status--sparse" data-testid="sparse-pool">Sparse current-week pool</span>
         {% else %}
           <span class="status status--ready" data-testid="complete-pool">Ready for assessment</span>
@@ -64,7 +66,9 @@
                 <span class="problem-number">{{ selection.position|stringformat:"02d" }}</span>
                 <div class="selection-tags">
                   <span class="difficulty difficulty--{{ selection.slot_kind }}">{{ selection.get_slot_kind_display }}</span>
-                  {% if selection.is_unseen %}
+                  {% if selection.is_fallback %}
+                    <span class="novelty novelty--fallback">Fallback</span>
+                  {% elif selection.is_unseen %}
                     <span class="novelty novelty--unseen">Unseen</span>
                   {% else %}
                     <span class="novelty">Previously seen</span>
@@ -74,6 +78,12 @@
               <h3>{{ selection.problem.title }}</h3>
               <p class="statement">{{ selection.problem.statement }}</p>
               <p class="selection-rationale">{{ selection.rationale }}</p>
+              {% if selection.is_fallback %}
+                <p class="selection-source" data-testid="fallback-source">
+                  <span class="evidence-label">Fallback source</span>
+                  {{ selection.source_reason }}
+                </p>
+              {% endif %}
               <div class="eligibility" data-testid="eligibility-metadata">
                 <span class="evidence-label">Eligible through</span>
                 {% for concept in selection.eligibility_metadata.eligible_concepts %}

@@ -35,6 +35,10 @@ class AssessmentPool(models.Model):
         return self.selected_count < self.requested_problem_count
 
     @property
+    def has_fallback(self) -> bool:
+        return bool(self.eligibility_metadata.get("fallback_included"))
+
+    @property
     def mix_label(self) -> str:
         counts = {
             difficulty: self.selections.filter(slot_kind=difficulty).count()
@@ -49,6 +53,13 @@ class AssessmentSelection(models.Model):
     class SlotKind(models.TextChoices):
         EASY = "easy", "Easy"
         MEDIUM = "medium", "Medium"
+
+    class SourceKind(models.TextChoices):
+        CURRENT_WEEK = "current_week_studied_concept", "Current-week Concept"
+        OLDER_CONCEPT_FALLBACK = (
+            "older_concept_fallback",
+            "Older Concept fallback",
+        )
 
     pool = models.ForeignKey(
         AssessmentPool,
@@ -97,6 +108,25 @@ class AssessmentSelection(models.Model):
             for concept in self.eligibility_metadata.get("eligible_concepts", [])
             if concept.get("name")
         ]
+
+    @property
+    def source_kind(self) -> str:
+        """Return the selection source, including compatibility for old rows."""
+
+        return self.eligibility_metadata.get(
+            "source_kind",
+            self.SourceKind.CURRENT_WEEK,
+        )
+
+    @property
+    def source_reason(self) -> str:
+        """Explain why this selection came from its source pool."""
+
+        return self.eligibility_metadata.get("source_reason", "")
+
+    @property
+    def is_fallback(self) -> bool:
+        return self.source_kind == self.SourceKind.OLDER_CONCEPT_FALLBACK
 
 
 class AssessmentSession(models.Model):

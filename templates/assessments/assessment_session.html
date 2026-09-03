@@ -69,6 +69,25 @@
               <div class="outcome-row"><span>Medium</span><strong>{{ summary.final.medium.solved }} solved · {{ summary.final.medium.needs_review }} review</strong></div>
             </article>
           </div>
+          {% if summary.timed.fallback.total or summary.final.fallback.total %}
+            <section class="fallback-summary" data-testid="fallback-summary">
+              <p class="eyebrow">FALLBACK RESULT</p>
+              <h3>Older-Concept Problems</h3>
+              <p class="summary-meta">Fallback items are kept outside the current-week Easy/Medium score.</p>
+              <div class="outcome-grid">
+                <article>
+                  <p class="eyebrow">TIMED CUTOFF</p>
+                  <div class="outcome-row"><span>Easy</span><strong>{{ summary.timed.fallback.easy.solved }} solved · {{ summary.timed.fallback.easy.needs_review }} review</strong></div>
+                  <div class="outcome-row"><span>Medium</span><strong>{{ summary.timed.fallback.medium.solved }} solved · {{ summary.timed.fallback.medium.needs_review }} review</strong></div>
+                </article>
+                <article>
+                  <p class="eyebrow">FINAL</p>
+                  <div class="outcome-row"><span>Easy</span><strong>{{ summary.final.fallback.easy.solved }} solved · {{ summary.final.fallback.easy.needs_review }} review</strong></div>
+                  <div class="outcome-row"><span>Medium</span><strong>{{ summary.final.fallback.medium.solved }} solved · {{ summary.final.fallback.medium.needs_review }} review</strong></div>
+                </article>
+              </div>
+            </section>
+          {% endif %}
         </section>
       {% else %}
         <section class="problem-nav" aria-label="Assessment Problems">
@@ -84,11 +103,20 @@
           <div class="selection-topline">
             <div class="selection-tags">
               <span class="difficulty difficulty--{{ current_response.selection.slot_kind }}">{{ current_response.selection.get_slot_kind_display }}</span>
+              {% if current_response.selection.is_fallback %}
+                <span class="novelty novelty--fallback">Fallback</span>
+              {% endif %}
               <span class="novelty">Problem {{ current_response.selection.position }} of {{ responses|length }}</span>
             </div>
           </div>
           <h2>{{ current_response.selection.problem.title }}</h2>
           <p class="statement">{{ current_response.selection.problem.statement }}</p>
+          {% if current_response.selection.is_fallback %}
+            <p class="selection-source" data-testid="session-fallback-source">
+              <span class="evidence-label">Fallback source</span>
+              {{ current_response.selection.source_reason }}
+            </p>
+          {% endif %}
         </section>
 
         <form class="response-form" method="post" data-testid="assessment-response-form">

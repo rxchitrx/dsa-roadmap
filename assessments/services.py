@@ -105,6 +105,55 @@ def get_studied_concepts(week_start: date | None = None) -> list[Concept]:
     return [item["concept"] for item in evidence.values()]
 
 
+def _get_older_concept_evidence(
+    week_start: date,
+    excluded_concept_ids: set[int],
+) -> dict[int, dict]:
+    """Return fallback Concepts outside the current week's studied set.
+
+    Concepts with completed study blocks before this week are ranked ahead of
+    untouched Concepts. The latter are still eligible because the local
+    curriculum does not have a separate concept-readiness table yet; keeping
+    them available makes a zero-preferred-pool assessment useful without
+    pretending that the fallback measured current-week learning.
+    """
+
+    prior_blocks = (
+        StudyBlock.objects.select_related("assigned_concept__topic")
+        .filter(
+            date__lt=week_start,
+            assigned_concept__isnull=False,
+            status=StudyBlock.Status.COMPLETED,
+        )
+        .order_by("date", "position", "id")
+    )
+    prior_evidence: dict[int, list[dict]] = {}
+    for block in prior_blocks:
+        if not _is_concept_study_block(block):
+            continue
+        prior_evidence.setdefault(block.assigned_concept_id, []).append(
+            {
+                "type": "completed_prior_study_block",
+                "block_id": block.pk,
+                "date": block.date.isoformat(),
+                "title": block.title,
+            }
+        )
+
+    concepts = (
+        Concept.objects.select_related("topic")
+        .exclude(pk__in=excluded_concept_ids)
+        .order_by("topic__display_order", "topic__id", "order", "id")
+    )
+    return {
+        concept.pk: {
+            "concept": concept,
+            "evidence": prior_evidence.get(concept.pk, []),
+        }
+        for concept in concepts
+    }
+
+
 def _problem_concept_metadata(problem: Problem, studied_evidence: dict[int, dict]) -> list[dict]:
     """Explain which studied Concepts make a Problem eligible."""
 
@@ -179,6 +228,11 @@ def _candidate_pool(studied_evidence: dict[int, dict]) -> list[dict]:
                 "difficulty": problem.difficulty,
                 "is_unseen": unseen_by_problem_id[problem.pk],
                 "eligible_concepts": eligible_concepts,
+                "concept_evidence": [
+                    evidence
+                    for concept in eligible_concepts
+                    for evidence in concept["evidence"]
+                ],
             }
         )
     return candidate_rows
@@ -194,11 +248,33 @@ def _candidate_sort_key(row: dict) -> tuple:
     )
 
 
-def _selection_rationale(row: dict, slot_kind: str) -> str:
+def _fallback_candidate_sort_key(row: dict) -> tuple:
+    problem = row["problem"]
+    return (
+        not row["is_unseen"],
+        not bool(row["concept_evidence"]),
+        problem.display_order,
+        problem.title.casefold(),
+        problem.pk,
+    )
+
+
+def _selection_rationale(
+    row: dict,
+    slot_kind: str,
+    *,
+    source_kind: str,
+    source_reason: str = "",
+) -> str:
     concept_names = ", ".join(
         concept["name"] for concept in row["eligible_concepts"]
     )
     novelty = "unseen preference" if row["is_unseen"] else "no unseen eligible Problem remained"
+    if source_kind == AssessmentSelection.SourceKind.OLDER_CONCEPT_FALLBACK:
+        return (
+            f"{slot_kind.title()} fallback from older Concept(s): {concept_names}. "
+            f"{source_reason} Chosen with {novelty}."
+        )
     return (
         f"{slot_kind.title()} slot from current-week studied Concept(s): "
         f"{concept_names}. Chosen with {novelty}."
@@ -208,14 +284,21 @@ def _selection_rationale(row: dict, slot_kind: str) -> str:
 def _pool_rationale(
     studied_evidence: dict[int, dict],
     candidate_rows: list[dict],
-    selected_rows: list[tuple[str, dict]],
+    selected_rows: list[tuple[str, dict, str, str]],
 ) -> str:
     concept_names = ", ".join(
         item["concept"].name for item in studied_evidence.values()
     )
     candidate_counts = Counter(row["difficulty"] for row in candidate_rows)
-    selected_counts = Counter(kind for kind, _row in selected_rows)
-    selected_unseen = sum(row["is_unseen"] for _kind, row in selected_rows)
+    selected_counts = Counter(kind for kind, _row, _source, _reason in selected_rows)
+    fallback_rows = [
+        (kind, row)
+        for kind, row, source, _reason in selected_rows
+        if source == AssessmentSelection.SourceKind.OLDER_CONCEPT_FALLBACK
+    ]
+    selected_unseen = sum(
+        row["is_unseen"] for _kind, row, _source, _reason in selected_rows
+    )
     selected_count = len(selected_rows)
     rationale = (
         f"Eligible Concepts studied this week: {concept_names or 'none'}. "
@@ -225,8 +308,19 @@ def _pool_rationale(
         f"{selected_counts['easy']} easy and {selected_counts['medium']} medium "
         f"({selected_unseen} of {selected_count} unseen)."
     )
-    if selected_count < 3:
-        rationale += " The current-week pool is sparse, so no older-Concept fallback was added in this slice."
+    if fallback_rows:
+        fallback_counts = Counter(kind for kind, _row in fallback_rows)
+        rationale += (
+            f" The preferred current-week pool was sparse, so the selector filled "
+            f"{len(fallback_rows)} slot(s) from older Concepts "
+            f"({fallback_counts['easy']} easy and {fallback_counts['medium']} medium). "
+            "Fallback Problems are reported separately from the current-week score."
+        )
+    elif selected_count < 3:
+        rationale += (
+            " The current-week pool is sparse, and no eligible older-Concept "
+            "Problems were available to fill the remaining slots."
+        )
     return rationale
 
 
@@ -234,12 +328,7 @@ def _pool_rationale(
 def generate_saturday_assessment_pool(
     week_start: date | None = None,
 ) -> AssessmentPool:
-    """Generate the current-week Saturday pool with a fixed difficulty mix.
-
-    This slice deliberately selects only from Concepts with completed
-    current-week study evidence. It never pads the pool with older Concepts;
-    issue #26 owns fallback selection and separate fallback scoring.
-    """
+    """Generate the Saturday pool, filling missing slots with older Concepts."""
 
     start = week_start_for(week_start or timezone.localdate())
     existing_pool = AssessmentPool.objects.filter(week_start=start).first()
@@ -249,7 +338,7 @@ def generate_saturday_assessment_pool(
         return existing_pool
     studied_evidence = get_studied_concept_evidence(start)
     candidate_rows = _candidate_pool(studied_evidence)
-    selected_rows: list[tuple[str, dict]] = []
+    selected_rows: list[tuple[str, dict, str, str]] = []
     selected_problem_ids: set[int] = set()
 
     for slot_kind, requested_count in SLOT_PLAN:
@@ -263,7 +352,59 @@ def generate_saturday_assessment_pool(
             key=_candidate_sort_key,
         )
         for row in matching[:requested_count]:
-            selected_rows.append((slot_kind, row))
+            selected_rows.append(
+                (
+                    slot_kind,
+                    row,
+                    AssessmentSelection.SourceKind.CURRENT_WEEK,
+                    "",
+                )
+            )
+            selected_problem_ids.add(row["problem"].pk)
+
+    preferred_problem_ids = {row["problem"].pk for row in candidate_rows}
+    older_evidence = _get_older_concept_evidence(
+        start,
+        set(studied_evidence),
+    )
+    fallback_rows = [
+        row
+        for row in _candidate_pool(older_evidence)
+        if row["problem"].pk not in preferred_problem_ids
+    ]
+    current_counts = Counter(
+        kind
+        for kind, _row, source, _reason in selected_rows
+        if source == AssessmentSelection.SourceKind.CURRENT_WEEK
+    )
+    fallback_candidate_counts = Counter(
+        row["difficulty"] for row in fallback_rows
+    )
+    for slot_kind, requested_count in SLOT_PLAN:
+        remaining_count = requested_count - current_counts[slot_kind]
+        matching = sorted(
+            (
+                row
+                for row in fallback_rows
+                if row["difficulty"] == slot_kind
+                and row["problem"].pk not in selected_problem_ids
+            ),
+            key=_fallback_candidate_sort_key,
+        )
+        source_reason = (
+            f"The current-week studied Concept pool had only "
+            f"{current_counts[slot_kind]} eligible {slot_kind} Problem(s); "
+            f"this slot was filled from an older Concept."
+        )
+        for row in matching[:remaining_count]:
+            selected_rows.append(
+                (
+                    slot_kind,
+                    row,
+                    AssessmentSelection.SourceKind.OLDER_CONCEPT_FALLBACK,
+                    source_reason,
+                )
+            )
             selected_problem_ids.add(row["problem"].pk)
 
     pool, _created = AssessmentPool.objects.get_or_create(
@@ -278,6 +419,11 @@ def generate_saturday_assessment_pool(
     candidate_counts = Counter(row["difficulty"] for row in candidate_rows)
     unseen_candidate_counts = Counter(
         row["difficulty"] for row in candidate_rows if row["is_unseen"]
+    )
+    fallback_selected_counts = Counter(
+        kind
+        for kind, _row, source, _reason in selected_rows
+        if source == AssessmentSelection.SourceKind.OLDER_CONCEPT_FALLBACK
     )
     metadata = {
         "week_start": start.isoformat(),
@@ -299,15 +445,33 @@ def generate_saturday_assessment_pool(
             "easy": unseen_candidate_counts["easy"],
             "medium": unseen_candidate_counts["medium"],
         },
-        "selected_counts": dict(Counter(kind for kind, _row in selected_rows)),
-        "selection_scope": "current_week_studied_concepts",
-        "fallback_included": False,
+        "selected_counts": dict(
+            Counter(kind for kind, _row, _source, _reason in selected_rows)
+        ),
+        "current_week_selected_counts": dict(current_counts),
+        "fallback_candidate_counts": {
+            "easy": fallback_candidate_counts["easy"],
+            "medium": fallback_candidate_counts["medium"],
+        },
+        "fallback_selected_counts": {
+            "easy": fallback_selected_counts["easy"],
+            "medium": fallback_selected_counts["medium"],
+        },
+        "selection_scope": (
+            "current_week_and_older_concept_fallback"
+            if fallback_selected_counts
+            else "current_week_studied_concepts"
+        ),
+        "fallback_included": bool(fallback_selected_counts),
     }
     pool.rationale = _pool_rationale(studied_evidence, candidate_rows, selected_rows)
     pool.eligibility_metadata = metadata
     pool.save(update_fields=("rationale", "eligibility_metadata", "updated_at"))
 
-    for position, (slot_kind, row) in enumerate(selected_rows, start=1):
+    for position, (slot_kind, row, source_kind, source_reason) in enumerate(
+        selected_rows,
+        start=1,
+    ):
         problem = row["problem"]
         AssessmentSelection.objects.create(
             pool=pool,
@@ -315,12 +479,20 @@ def generate_saturday_assessment_pool(
             position=position,
             slot_kind=slot_kind,
             is_unseen=row["is_unseen"],
-            rationale=_selection_rationale(row, slot_kind),
+            rationale=_selection_rationale(
+                row,
+                slot_kind,
+                source_kind=source_kind,
+                source_reason=source_reason,
+            ),
             eligibility_metadata={
-                "eligibility": "current_week_studied_concept",
+                "eligibility": source_kind,
+                "source_kind": source_kind,
+                "source_reason": source_reason,
                 "eligible_concepts": row["eligible_concepts"],
                 "difficulty": problem.difficulty,
                 "is_unseen": row["is_unseen"],
+                "concept_evidence": row.get("concept_evidence", []),
             },
         )
 
@@ -359,6 +531,9 @@ def _response_snapshot(response: AssessmentResponse) -> dict:
         "position": selection.position,
         "problem_id": selection.problem_id,
         "difficulty": selection.slot_kind,
+        "source_kind": selection.source_kind,
+        "source_reason": selection.source_reason,
+        "is_fallback": selection.is_fallback,
         "draft_answer": response.draft_answer,
         "outcome": response.outcome,
         "result_note": response.result_note,
@@ -476,6 +651,8 @@ def _summary_for_rows(rows: list[dict]) -> dict:
             AssessmentSelection.SlotKind.MEDIUM,
         )
     }
+    summary["total"] = 0
+    summary["solved"] = 0
     for row in rows:
         difficulty = row.get("difficulty")
         if difficulty not in summary:
@@ -485,6 +662,25 @@ def _summary_for_rows(rows: list[dict]) -> dict:
             outcome = AssessmentResponse.Outcome.NOT_STARTED
         summary[difficulty]["total"] += 1
         summary[difficulty][outcome] += 1
+        summary["total"] += 1
+        if outcome == AssessmentResponse.Outcome.SOLVED:
+            summary["solved"] += 1
+    return summary
+
+
+def _row_is_fallback(row: dict) -> bool:
+    """Recognize fallback snapshots created before or after this slice."""
+
+    return row.get("is_fallback", False) or row.get(
+        "source_kind"
+    ) == AssessmentSelection.SourceKind.OLDER_CONCEPT_FALLBACK
+
+
+def _summary_with_fallback(rows: list[dict]) -> dict:
+    current_rows = [row for row in rows if not _row_is_fallback(row)]
+    fallback_rows = [row for row in rows if _row_is_fallback(row)]
+    summary = _summary_for_rows(current_rows)
+    summary["fallback"] = _summary_for_rows(fallback_rows)
     return summary
 
 
@@ -498,13 +694,13 @@ def _live_response_rows(session: AssessmentSession) -> list[dict]:
 
 
 def get_assessment_summary(session: AssessmentSession) -> dict:
-    """Return separate timed and final easy/medium outcome totals."""
+    """Return current-week and fallback results for timed and final states."""
 
     timed_rows = session.cutoff_snapshot.get("responses", [])
     final_rows = _live_response_rows(session)
     return {
-        "timed": _summary_for_rows(timed_rows),
-        "final": _summary_for_rows(final_rows),
+        "timed": _summary_with_fallback(timed_rows),
+        "final": _summary_with_fallback(final_rows),
         "submitted_after_cutoff": bool(
             session.submitted_at and session.submitted_at >= session.cutoff_at
         ),

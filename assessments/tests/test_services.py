@@ -209,6 +209,94 @@ def test_sparse_pool_keeps_only_available_difficulty_slots_and_explains_gap(
 
 
 @pytest.mark.django_db
+def test_zero_preferred_pool_is_filled_entirely_from_older_concepts(studied_concept):
+    older_concept = make_concept("hashing", "older-hashing", order=1)
+    mark_concept_studied(older_concept, date(2026, 8, 24))
+    older_easy = make_problem(older_concept, "older-easy", Problem.Difficulty.EASY)
+    older_medium_one = make_problem(
+        older_concept,
+        "older-medium-one",
+        Problem.Difficulty.MEDIUM,
+    )
+    older_medium_two = make_problem(
+        older_concept,
+        "older-medium-two",
+        Problem.Difficulty.MEDIUM,
+    )
+
+    pool = generate_saturday_assessment_pool(date(2026, 8, 31))
+    selections = list(pool.selections.select_related("problem"))
+
+    assert {selection.problem_id for selection in selections} == {
+        older_easy.pk,
+        older_medium_one.pk,
+        older_medium_two.pk,
+    }
+    assert all(selection.is_fallback for selection in selections)
+    assert all("current-week" in selection.source_reason for selection in selections)
+    assert pool.has_fallback is True
+    assert pool.is_sparse is False
+    assert pool.eligibility_metadata["current_week_selected_counts"] == {}
+    assert pool.eligibility_metadata["fallback_selected_counts"] == {
+        "easy": 1,
+        "medium": 2,
+    }
+
+
+@pytest.mark.django_db
+def test_partial_preferred_pool_fills_only_missing_difficulty_slots(studied_concept):
+    current_easy = make_problem(
+        studied_concept,
+        "current-easy-only",
+        Problem.Difficulty.EASY,
+    )
+    older_concept = make_concept("hashing", "older-partial", order=1)
+    older_medium_one = make_problem(
+        older_concept,
+        "fallback-medium-one",
+        Problem.Difficulty.MEDIUM,
+    )
+    older_medium_two = make_problem(
+        older_concept,
+        "fallback-medium-two",
+        Problem.Difficulty.MEDIUM,
+    )
+
+    pool = generate_saturday_assessment_pool(date(2026, 8, 31))
+    selections = list(pool.selections.select_related("problem"))
+
+    assert [selection.problem_id for selection in selections] == [
+        current_easy.pk,
+        older_medium_one.pk,
+        older_medium_two.pk,
+    ]
+    assert selections[0].is_fallback is False
+    assert all(selection.is_fallback for selection in selections[1:])
+    assert pool.eligibility_metadata["current_week_selected_counts"] == {"easy": 1}
+    assert pool.eligibility_metadata["fallback_selected_counts"] == {
+        "easy": 0,
+        "medium": 2,
+    }
+
+
+@pytest.mark.django_db
+def test_complete_preferred_pool_does_not_add_fallback_items(studied_concept):
+    make_problem(studied_concept, "complete-easy", Problem.Difficulty.EASY)
+    make_problem(studied_concept, "complete-medium-one", Problem.Difficulty.MEDIUM)
+    make_problem(studied_concept, "complete-medium-two", Problem.Difficulty.MEDIUM)
+    older_concept = make_concept("hashing", "unused-older", order=1)
+    make_problem(older_concept, "unused-fallback", Problem.Difficulty.EASY)
+
+    pool = generate_saturday_assessment_pool(date(2026, 8, 31))
+
+    assert pool.selections.count() == 3
+    assert pool.selections.filter(
+        eligibility_metadata__source_kind=AssessmentSelection.SourceKind.OLDER_CONCEPT_FALLBACK
+    ).count() == 0
+    assert pool.eligibility_metadata["fallback_included"] is False
+
+
+@pytest.mark.django_db
 def test_regenerating_a_week_replaces_stale_selections_without_duplicates(
     studied_concept,
 ):
