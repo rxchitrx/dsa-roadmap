@@ -1,0 +1,58 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Curriculum · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'curriculum/curriculum.css' %}">
+  </head>
+  <body>
+    <main class="curriculum-shell">
+      <header class="curriculum-header">
+        <a class="back-link" href="{% url 'planner:today' %}">← Today</a>
+        <p class="eyebrow">DSA ROADMAP / CURRICULUM</p>
+        <h1>Learn in sequence.</h1>
+        <p class="lede">A focused path through concepts, with each lesson building on the last.</p>
+      </header>
+
+      <section class="topic-list" aria-labelledby="topics-heading">
+        <div class="section-heading">
+          <p class="eyebrow">YOUR ROADMAP</p>
+          <h2 id="topics-heading">Topics and concepts</h2>
+        </div>
+
+        {% for topic in topics %}
+          <article class="topic-card" data-testid="topic-card">
+            <div class="topic-card-header">
+              <div>
+                <p class="topic-kicker">Topic {{ forloop.counter|stringformat:"02d" }}</p>
+                <h3>{{ topic.name }}</h3>
+              </div>
+              <span class="concept-count">{{ topic.concepts.all|length }} lessons</span>
+            </div>
+            <p class="topic-description">{{ topic.description }}</p>
+
+            <ol class="concept-list">
+              {% for concept in topic.concepts.all %}
+                <li class="concept-row">
+                  <span class="concept-number">{{ concept.order|stringformat:"02d" }}</span>
+                  <a href="{% url 'curriculum:concept_detail' concept_slug=concept.slug %}">
+                    <span class="concept-name">{{ concept.name }}</span>
+                    <span class="concept-summary">{{ concept.summary }}</span>
+                  </a>
+                  <span class="open-mark" aria-hidden="true">↗</span>
+                </li>
+              {% endfor %}
+            </ol>
+          </article>
+        {% empty %}
+          <div class="empty-state">
+            <h3>Your curriculum is waiting.</h3>
+            <p>Run the curriculum seed command to add the first DSA learning path.</p>
+          </div>
+        {% endfor %}
+      </section>
+    </main>
+  </body>
+</html>

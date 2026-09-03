@@ -1,0 +1,105 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ concept.name }} · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'curriculum/curriculum.css' %}">
+  </head>
+  <body>
+    <main class="lesson-shell" data-testid="concept-lesson">
+      <header class="lesson-header">
+        <a class="back-link" href="{% url 'curriculum:index' %}">← All concepts</a>
+        <p class="eyebrow">{{ concept.topic.name }} / LESSON {{ concept.order|stringformat:"02d" }}</p>
+        <h1>{{ concept.name }}</h1>
+        <p class="lesson-summary">{{ concept.summary }}</p>
+      </header>
+
+      <div class="lesson-layout">
+        <aside class="lesson-sidebar" aria-label="Lesson context">
+          <div class="sidebar-block">
+            <p class="sidebar-label">Topic</p>
+            <p class="sidebar-value">{{ concept.topic.name }}</p>
+          </div>
+          <div class="sidebar-block">
+            <p class="sidebar-label">Prerequisites</p>
+            {% if concept.prerequisites.all %}
+              <ul class="sidebar-list">
+                {% for prerequisite in concept.prerequisites.all %}
+                  <li><a href="{% url 'curriculum:concept_detail' concept_slug=prerequisite.slug %}">{{ prerequisite.name }}</a></li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="sidebar-muted">Start here</p>
+            {% endif %}
+          </div>
+        </aside>
+
+        <article class="lesson-content">
+          <section class="lesson-section lesson-section--lead">
+            <p class="section-index">01</p>
+            <div>
+              <h2>Why this matters</h2>
+              <h3>Build the mental model first.</h3>
+              <p>{{ concept.intuition }}</p>
+              {{ concept.explanation|linebreaks }}
+            </div>
+          </section>
+
+          <section class="lesson-section">
+            <p class="section-index">02</p>
+            <div>
+              <h2>Examples</h2>
+              {% for example in concept.examples %}
+                <div class="example-block">
+                  <h3>{{ example.title }}</h3>
+                  <div class="example-grid">
+                    <div><span class="example-label">Input</span><code>{{ example.input }}</code></div>
+                    <div><span class="example-label">Output</span><code>{{ example.output }}</code></div>
+                  </div>
+                  <p>{{ example.walkthrough }}</p>
+                  {% if example.code %}<pre><code>{{ example.code }}</code></pre>{% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="lesson-section lesson-section--split">
+            <div>
+              <p class="section-index">03</p>
+              <h2>Complexity</h2>
+              <p>{{ concept.complexity_notes }}</p>
+            </div>
+            <div>
+              <p class="section-index">04</p>
+              <h2>Implementation guidance</h2>
+              <p>{{ concept.implementation_guidance }}</p>
+            </div>
+          </section>
+
+          <section class="lesson-section">
+            <p class="section-index">05</p>
+            <div>
+              <h2>Common traps</h2>
+              <p>{{ concept.common_traps }}</p>
+            </div>
+          </section>
+
+          <section class="practice-grid">
+            <div class="practice-card">
+              <p class="section-index">06</p>
+              <h2>Guided practice</h2>
+              <p>{{ concept.guided_practice }}</p>
+            </div>
+            <div class="practice-card practice-card--accent">
+              <p class="section-index">07</p>
+              <h2>Checkpoint</h2>
+              <p>{{ concept.checkpoint }}</p>
+            </div>
+          </section>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
