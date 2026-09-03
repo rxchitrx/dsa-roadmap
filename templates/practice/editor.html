@@ -30,7 +30,15 @@
                 <h2 id="editor-heading">Your working draft</h2>
                 <p>Write, refresh, and return later. Your draft stays on this machine.</p>
               </div>
-              <span class="draft-status" data-draft-status data-state="saved" aria-live="polite">Draft ready</span>
+              <div class="workspace-actions">
+                <span class="draft-status" data-draft-status data-state="saved" aria-live="polite">Draft ready</span>
+                <button
+                  class="run-button"
+                  type="button"
+                  data-run-tests
+                  data-run-url="{% url 'practice:run_tests' problem.slug %}"
+                >Run visible tests</button>
+              </div>
             </div>
           </div>
 
@@ -51,6 +59,42 @@
               <span class="revision-label" data-draft-revision>Revision {{ draft.revision }}</span>
             </div>
           </form>
+
+          <section class="run-panel" aria-labelledby="visible-tests-heading">
+            <div class="run-panel-header">
+              <div>
+                <p class="section-label">Feedback loop</p>
+                <h2 id="visible-tests-heading">Visible tests</h2>
+                <p class="run-help">Runs locally in a short-lived process with imports, files, network, and subprocesses disabled.</p>
+              </div>
+            </div>
+            <div
+              class="run-result"
+              data-run-result
+              data-state="{{ latest_run.status|default:'idle' }}"
+              aria-live="polite"
+            >
+              {% if latest_run %}
+                <p class="run-outcome" data-run-outcome>{{ latest_run.get_status_display }}</p>
+                <p class="run-summary" data-run-summary>{{ latest_run.summary }}</p>
+                {% if latest_run.message %}<p class="run-message" data-run-message>{{ latest_run.message }}</p>{% endif %}
+                {% if latest_run.details %}
+                  <ol class="run-cases" data-run-cases>
+                    {% for detail in latest_run.details %}
+                      <li data-state="{% if detail.passed %}passed{% else %}failed{% endif %}">
+                        <span>{{ detail.label }}</span>
+                        {% if detail.passed %}<strong>Passed</strong>{% else %}<strong>Needs another look</strong>{% endif %}
+                        {% if detail.message %}<small>{{ detail.message }}</small>{% endif %}
+                      </li>
+                    {% endfor %}
+                  </ol>
+                {% endif %}
+              {% else %}
+                <p class="run-outcome" data-run-outcome>Not run yet</p>
+                <p class="run-summary" data-run-summary>Run the visible cases when you have a first attempt.</p>
+              {% endif %}
+            </div>
+          </section>
         </section>
 
         <aside class="context-panel" aria-label="Problem context">

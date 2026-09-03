@@ -6,7 +6,8 @@ from django.views.decorators.http import require_GET, require_POST
 
 from problems.models import Problem
 
-from .services import get_or_create_draft, save_draft
+from .models import PracticeRun
+from .services import get_or_create_draft, run_visible_tests, save_draft
 
 
 def _active_problem(slug: str) -> Problem:
@@ -27,6 +28,7 @@ def editor(request, slug):
         {
             "problem": problem,
             "draft": draft,
+            "latest_run": PracticeRun.objects.filter(problem=problem).first(),
         },
     )
 
@@ -86,5 +88,41 @@ def save_problem_draft(request, slug):
             "stale": False,
             "revision": result.draft.revision,
             "updated_at": result.draft.updated_at.isoformat(),
+        }
+    )
+
+
+@require_POST
+def run_problem_tests(request, slug):
+    problem = _active_problem(slug)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse(
+            {"run": False, "message": "Send submission data as valid JSON."},
+            status=400,
+        )
+
+    code = payload.get("code") if isinstance(payload, dict) else None
+    if not isinstance(code, str) or not code.strip():
+        return JsonResponse(
+            {"run": False, "message": "Submit a non-empty Python function."},
+            status=400,
+        )
+
+    practice_run = run_visible_tests(problem, code=code)
+    return JsonResponse(
+        {
+            "run": True,
+            "id": practice_run.pk,
+            "status": practice_run.status,
+            "status_label": practice_run.get_status_display(),
+            "summary": practice_run.summary,
+            "message": practice_run.message,
+            "passed_tests": practice_run.passed_tests,
+            "total_tests": practice_run.total_tests,
+            "duration_ms": practice_run.duration_ms,
+            "details": practice_run.details,
         }
     )

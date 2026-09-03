@@ -5,8 +5,8 @@ from django.urls import reverse
 
 from problems.models import Problem
 
-from practice.models import ProblemDraft
-from practice.services import starter_signature_for
+from practice.models import PracticeRun, ProblemDraft
+from practice.services import run_visible_tests, starter_signature_for
 
 
 @pytest.fixture
@@ -135,3 +135,72 @@ def test_editor_does_not_recreate_or_reset_an_existing_draft(client, problem):
     assert second.context["draft"].pk == draft.pk
     assert second.context["draft"].code == "def contains_duplicate(nums):\n    return 'keep me'\n"
     assert second.context["draft"].revision == 4
+
+
+@pytest.mark.django_db
+def test_run_visible_tests_persists_a_passing_result_and_editor_shows_it(client, problem):
+    code = "def contains_duplicate(nums):\n    return len(nums) != len(set(nums))\n"
+
+    response = client.post(
+        reverse("practice:run_tests", kwargs={"slug": problem.slug}),
+        data=json.dumps({"code": code}),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"] is True
+    assert payload["status"] == PracticeRun.Status.PASSED
+    assert payload["passed_tests"] == 2
+    assert payload["total_tests"] == 2
+    assert PracticeRun.objects.get(problem=problem).code == code
+
+    editor = client.get(reverse("practice:editor", kwargs={"slug": problem.slug}))
+    assert "Passed" in editor.content.decode()
+    assert "2 of 2 visible tests passed." in editor.content.decode()
+
+
+@pytest.mark.django_db
+def test_run_visible_tests_reports_an_assertion_failure(problem):
+    code = "def contains_duplicate(nums):\n    return len(nums) == len(set(nums))\n"
+
+    practice_run = run_visible_tests(problem, code=code)
+
+    assert practice_run.status == PracticeRun.Status.ASSERTION_FAILURE
+    assert practice_run.passed_tests == 0
+    assert practice_run.total_tests == 2
+    assert practice_run.details[0]["passed"] is False
+    assert PracticeRun.objects.filter(pk=practice_run.pk).exists()
+
+
+@pytest.mark.django_db
+def test_run_visible_tests_reports_a_runtime_error(problem):
+    code = "def contains_duplicate(nums):\n    raise ValueError('bad input')\n"
+
+    practice_run = run_visible_tests(problem, code=code)
+
+    assert practice_run.status == PracticeRun.Status.RUNTIME_ERROR
+    assert practice_run.passed_tests == 0
+    assert "ValueError: bad input" in practice_run.details[0]["message"]
+
+
+@pytest.mark.django_db
+def test_run_visible_tests_stops_a_non_terminating_submission(problem):
+    code = "def contains_duplicate(nums):\n    while True:\n        pass\n"
+
+    practice_run = run_visible_tests(problem, code=code)
+
+    assert practice_run.status == PracticeRun.Status.TIMEOUT
+    assert practice_run.total_tests == 2
+    assert practice_run.duration_ms >= 1_000
+
+
+@pytest.mark.django_db
+def test_run_visible_tests_rejects_filesystem_and_network_capabilities(problem):
+    code = "import os\n\ndef contains_duplicate(nums):\n    return os.listdir('/')\n"
+
+    practice_run = run_visible_tests(problem, code=code)
+
+    assert practice_run.status == PracticeRun.Status.SAFETY_VIOLATION
+    assert "Imports are disabled" in practice_run.message
+    assert not practice_run.details
