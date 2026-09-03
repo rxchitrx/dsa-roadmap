@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "progress",
     "problems",
     "practice",
+    "history.apps.HistoryConfig",
 ]
 
 MIDDLEWARE = [

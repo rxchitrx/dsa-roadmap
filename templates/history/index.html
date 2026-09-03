@@ -1,0 +1,79 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Run history · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'history/history.css' %}">
+  </head>
+  <body>
+    <main class="history-shell" data-testid="run-history">
+      <header class="history-header">
+        <a class="back-link" href="/">← Today</a>
+        <p class="eyebrow">DSA ROADMAP / PRACTICE MEMORY</p>
+        <h1>Remember how you solved it.</h1>
+        <p class="lede">
+          Every visible-test run is kept as a useful checkpoint: the code you submitted,
+          what happened, and when you made the attempt. Draft autosaves stay out of this timeline.
+        </p>
+      </header>
+
+      <section class="history-toolbar" aria-labelledby="history-heading">
+        <div>
+          <p class="eyebrow">{{ entry_count }} RUN{{ entry_count|pluralize|upper }}</p>
+          <h2 id="history-heading">Newest first</h2>
+        </div>
+        <form class="filter-form" method="get" data-testid="history-filter">
+          <label>
+            <span>Problem</span>
+            <select name="problem">
+              <option value="">All problems</option>
+              {% for problem in problems %}
+                <option value="{{ problem.slug }}"{% if selected_problem == problem.slug %} selected{% endif %}>
+                  {{ problem.title }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="primary-button" type="submit">Filter history</button>
+        </form>
+      </section>
+
+      {% if entries %}
+        <section class="history-list" aria-label="Practice run history">
+          {% for entry in entries %}
+            <article class="history-card" data-testid="history-entry">
+              <header class="history-card-header">
+                <div>
+                  <h3><a class="problem-link" href="{% url 'problems:detail' slug=entry.practice_run.problem.slug %}">{{ entry.practice_run.problem.title }}</a></h3>
+                  <div class="history-meta">
+                    <span class="status status--{{ entry.status }}">{{ entry.status_label }}</span>
+                    {% if entry.practice_run.problem.source_name %}<span>{{ entry.practice_run.problem.source_name }}{% if entry.practice_run.problem.source_problem_id %} · {{ entry.practice_run.problem.source_problem_id }}{% endif %}</span>{% endif %}
+                  </div>
+                  <p class="result-summary">{{ entry.result_summary }}</p>
+                </div>
+                <time class="timestamp" datetime="{{ entry.captured_at|date:'c' }}">{{ entry.captured_at|date:"M j, Y · H:i" }}</time>
+              </header>
+              <section class="snapshot-section" aria-label="Code snapshot">
+                <p class="snapshot-label">Submitted code snapshot</p>
+                <pre class="code-snapshot"><code>{{ entry.code_snapshot }}</code></pre>
+              </section>
+              <footer class="history-card-footer">
+                <span class="run-stats">{{ entry.result_count_label }}{% if entry.duration_ms %} · {{ entry.duration_ms }} ms{% endif %}</span>
+                <a class="secondary-link" href="{% url 'practice:editor' slug=entry.practice_run.problem.slug %}">Practice this problem →</a>
+              </footer>
+            </article>
+          {% endfor %}
+        </section>
+      {% else %}
+        <section class="empty-state" data-testid="history-empty">
+          <p class="eyebrow">NO RUNS YET</p>
+          <h3>Your first attempt will become a checkpoint.</h3>
+          <p>Open a problem, run its visible tests, and come back here to compare the code and result over time.</p>
+          <a class="secondary-link" href="{% url 'problems:index' %}">Browse the problem library →</a>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

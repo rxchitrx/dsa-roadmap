@@ -8,5 +8,6 @@ urlpatterns = [
     path("progress/", include("progress.urls")),
     path("problems/", include("problems.urls")),
     path("practice/", include("practice.urls")),
+    path("history/", include("history.urls")),
     path("", include("planner.urls")),
 ]
