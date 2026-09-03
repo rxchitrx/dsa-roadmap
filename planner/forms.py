@@ -24,3 +24,12 @@ class StudyBlockEditForm(forms.ModelForm):
         if not title:
             raise forms.ValidationError("Give this study block a title.")
         return title
+
+
+class StopWorkSessionForm(forms.Form):
+    """Make block completion an intentional choice when stopping a timer."""
+
+    complete_block = forms.BooleanField(
+        required=False,
+        label="Mark this study block complete",
+    )

@@ -37,3 +37,65 @@ class StudyBlock(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} ({self.date:%Y-%m-%d})"
+
+
+class WorkSession(models.Model):
+    """A learner's persisted timer run for one study block."""
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "Running"
+        PAUSED = "paused", "Paused"
+        STOPPED = "stopped", "Stopped"
+
+    study_block = models.ForeignKey(
+        StudyBlock,
+        on_delete=models.CASCADE,
+        related_name="work_sessions",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.RUNNING,
+    )
+    started_at = models.DateTimeField()
+    last_resumed_at = models.DateTimeField()
+    paused_at = models.DateTimeField(blank=True, null=True)
+    stopped_at = models.DateTimeField(blank=True, null=True)
+    elapsed_seconds = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                condition=models.Q(
+                    status__in=("running", "paused"),
+                ),
+                fields=("study_block",),
+                name="planner_one_active_work_session_per_block",
+            ),
+        ]
+        indexes = [models.Index(fields=("study_block", "status"))]
+
+    def __str__(self) -> str:
+        return f"{self.study_block.title} work session ({self.get_status_display()})"
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in {self.Status.RUNNING, self.Status.PAUSED}
+
+    def elapsed_seconds_at(self, now=None) -> int:
+        """Return elapsed time including an unpersisted, current run segment."""
+
+        if self.status != self.Status.RUNNING or self.last_resumed_at is None:
+            return self.elapsed_seconds
+
+        from django.utils import timezone
+
+        current_time = now or timezone.now()
+        additional_seconds = max(
+            0,
+            int((current_time - self.last_resumed_at).total_seconds()),
+        )
+        return self.elapsed_seconds + additional_seconds

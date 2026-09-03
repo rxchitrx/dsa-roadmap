@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Weekly plan · DSA Roadmap</title>
     <link rel="stylesheet" href="{% static 'planner/weekly.css' %}">
+    <link rel="stylesheet" href="{% static 'planner/timer.css' %}">
+    <script src="{% static 'planner/timer.js' %}" defer></script>
   </head>
   <body>
     <main class="weekly-shell">
@@ -116,6 +118,7 @@
                         >↓</button>
                       </form>
                     </div>
+                    {% include "planner/_timer_controls.html" with block=item.block %}
                   </li>
                 {% endfor %}
               </ol>

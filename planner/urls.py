@@ -24,4 +24,24 @@ urlpatterns = [
         views.reorder_study_block,
         name="reorder_study_block",
     ),
+    path(
+        "routine/blocks/<int:block_id>/timer/start/",
+        views.start_timer,
+        name="start_timer",
+    ),
+    path(
+        "routine/blocks/<int:block_id>/timer/pause/",
+        views.pause_timer,
+        name="pause_timer",
+    ),
+    path(
+        "routine/blocks/<int:block_id>/timer/resume/",
+        views.resume_timer,
+        name="resume_timer",
+    ),
+    path(
+        "routine/blocks/<int:block_id>/timer/stop/",
+        views.stop_timer,
+        name="stop_timer",
+    ),
 ]

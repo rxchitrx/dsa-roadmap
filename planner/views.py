@@ -5,34 +5,73 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import StudyBlockEditForm
-from .models import StudyBlock
+from .forms import StopWorkSessionForm, StudyBlockEditForm
+from .models import StudyBlock, WorkSession
 from .services import (
+    ActiveWorkSessionError,
+    InvalidWorkSessionStateError,
     generate_weekly_routine,
+    format_elapsed_seconds,
     is_weekly_routine_complete,
     move_study_block,
+    pause_work_session,
+    resume_work_session,
+    start_work_session,
+    stop_work_session,
+    WorkSessionTransitionError,
     week_start_for,
 )
 
 
-def today(request):
-    today_date = timezone.localdate()
-    study_blocks = list(
+def _decorate_with_timer_sessions(study_blocks):
+    """Attach the latest persisted timer run to each block for template use."""
+
+    study_blocks = list(study_blocks)
+    block_ids = [block.pk for block in study_blocks]
+    sessions_by_block = {}
+    sessions = WorkSession.objects.filter(
+        study_block_id__in=block_ids,
+    ).order_by("study_block_id", "-created_at", "-id")
+    for session in sessions:
+        sessions_by_block.setdefault(session.study_block_id, session)
+
+    now = timezone.now()
+    for block in study_blocks:
+        session = sessions_by_block.get(block.pk)
+        block.timer_session = session
+        block.timer_elapsed_seconds = (
+            session.elapsed_seconds if session else 0
+        )
+        block.timer_display = format_elapsed_seconds(
+            session.elapsed_seconds_at(now) if session else 0
+        )
+        block.timer_running_since = (
+            session.last_resumed_at.isoformat()
+            if session and session.status == WorkSession.Status.RUNNING
+            else ""
+        )
+    return study_blocks
+
+
+def _today_context(today_date=None, timer_error=None):
+    today_date = today_date or timezone.localdate()
+    study_blocks = _decorate_with_timer_sessions(
         StudyBlock.objects.filter(date=today_date).order_by("position", "id")
     )
     study_block = (
         study_blocks[0] if study_blocks else None
     )
-    return render(
-        request,
-        "planner/today.html",
-        {
-            "today": today_date,
-            "study_block": study_block,
-            "study_blocks": study_blocks,
-            "routine_generated": is_weekly_routine_complete(today_date),
-        },
-    )
+    return {
+        "today": today_date,
+        "study_block": study_block,
+        "study_blocks": study_blocks,
+        "routine_generated": is_weekly_routine_complete(today_date),
+        "timer_error": timer_error,
+    }
+
+
+def today(request):
+    return render(request, "planner/today.html", _today_context())
 
 
 @require_POST
@@ -44,8 +83,10 @@ def generate_weekly_routine_view(request):
 def _weekly_plan_context(week_start, forms_by_block=None):
     forms_by_block = forms_by_block or {}
     blocks_by_date = {}
-    blocks = StudyBlock.objects.filter(week_start=week_start).order_by(
-        "date", "position", "id"
+    blocks = _decorate_with_timer_sessions(
+        StudyBlock.objects.filter(week_start=week_start).order_by(
+            "date", "position", "id"
+        )
     )
     for block in blocks:
         blocks_by_date.setdefault(block.date, []).append(block)
@@ -113,3 +154,76 @@ def reorder_study_block(request, block_id):
 
     move_study_block(block, direction)
     return redirect("planner:weekly_plan")
+
+
+def _timer_error(request, message):
+    return render(
+        request,
+        "planner/today.html",
+        _today_context(timer_error=message),
+        status=409,
+    )
+
+
+def _active_session_for_block(block):
+    return WorkSession.objects.filter(
+        study_block=block,
+        status__in=(WorkSession.Status.RUNNING, WorkSession.Status.PAUSED),
+    ).first()
+
+
+@require_POST
+def start_timer(request, block_id):
+    block = get_object_or_404(StudyBlock, pk=block_id)
+    try:
+        start_work_session(block)
+    except ActiveWorkSessionError as error:
+        return _timer_error(request, str(error))
+    return redirect("planner:today")
+
+
+@require_POST
+def pause_timer(request, block_id):
+    block = get_object_or_404(StudyBlock, pk=block_id)
+    session = _active_session_for_block(block)
+    if session is None:
+        return _timer_error(request, "There is no active timer for this study block.")
+    try:
+        pause_work_session(session)
+    except WorkSessionTransitionError as error:
+        return _timer_error(request, str(error))
+    return redirect("planner:today")
+
+
+@require_POST
+def resume_timer(request, block_id):
+    block = get_object_or_404(StudyBlock, pk=block_id)
+    session = _active_session_for_block(block)
+    if session is None:
+        return _timer_error(request, "There is no paused timer for this study block.")
+    try:
+        resume_work_session(session)
+    except InvalidWorkSessionStateError as error:
+        return _timer_error(request, str(error))
+    return redirect("planner:today")
+
+
+@require_POST
+def stop_timer(request, block_id):
+    block = get_object_or_404(StudyBlock, pk=block_id)
+    session = _active_session_for_block(block)
+    if session is None:
+        return _timer_error(request, "There is no active timer for this study block.")
+
+    form = StopWorkSessionForm(request.POST)
+    if not form.is_valid():
+        return _timer_error(request, "Choose whether this stop completes the block.")
+
+    try:
+        stop_work_session(
+            session,
+            complete_block=form.cleaned_data["complete_block"],
+        )
+    except WorkSessionTransitionError as error:
+        return _timer_error(request, str(error))
+    return redirect("planner:today")

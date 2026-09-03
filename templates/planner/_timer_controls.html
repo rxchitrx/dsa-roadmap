@@ -1,0 +1,59 @@
+{% with session=block.timer_session %}
+  <section
+    class="timer-panel"
+    data-testid="timer-panel"
+    data-timer-panel
+    data-status="{% if session %}{{ session.status }}{% else %}idle{% endif %}"
+    data-elapsed-seconds="{{ block.timer_elapsed_seconds }}"
+    data-running-since="{{ block.timer_running_since }}"
+    aria-label="Work session timer for {{ block.title }}"
+  >
+    <div class="timer-readout-group">
+      <p class="timer-label">Work session</p>
+      <time class="timer-readout" data-testid="timer-readout">{{ block.timer_display }}</time>
+      <p class="timer-state" data-testid="timer-state">
+        {% if session %}{{ session.get_status_display }}{% else %}Ready{% endif %}
+      </p>
+    </div>
+
+    <div class="timer-actions">
+      {% if not session or session.status == 'stopped' %}
+        <form method="post" action="{% url 'planner:start_timer' block.pk %}">
+          {% csrf_token %}
+          <button class="timer-button timer-button--primary" type="submit" data-testid="start-timer">
+            Start timer
+          </button>
+        </form>
+        {% if session %}<span class="timer-note">Previous session saved</span>{% endif %}
+      {% elif session.status == 'running' %}
+        <form method="post" action="{% url 'planner:pause_timer' block.pk %}">
+          {% csrf_token %}
+          <button class="timer-button" type="submit" data-testid="pause-timer">Pause</button>
+        </form>
+        <form method="post" action="{% url 'planner:stop_timer' block.pk %}">
+          {% csrf_token %}
+          <label class="completion-choice">
+            <input type="checkbox" name="complete_block" value="1" data-testid="complete-block">
+            Mark block complete
+          </label>
+          <button class="timer-button" type="submit" data-testid="stop-timer">Stop</button>
+        </form>
+      {% elif session.status == 'paused' %}
+        <form method="post" action="{% url 'planner:resume_timer' block.pk %}">
+          {% csrf_token %}
+          <button class="timer-button timer-button--primary" type="submit" data-testid="resume-timer">
+            Resume
+          </button>
+        </form>
+        <form method="post" action="{% url 'planner:stop_timer' block.pk %}">
+          {% csrf_token %}
+          <label class="completion-choice">
+            <input type="checkbox" name="complete_block" value="1" data-testid="complete-block">
+            Mark block complete
+          </label>
+          <button class="timer-button" type="submit" data-testid="stop-timer">Stop</button>
+        </form>
+      {% endif %}
+    </div>
+  </section>
+{% endwith %}

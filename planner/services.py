@@ -1,9 +1,21 @@
 from datetime import date, timedelta
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import StudyBlock
+from .models import StudyBlock, WorkSession
+
+
+class WorkSessionTransitionError(Exception):
+    """Base error for an invalid timer action."""
+
+
+class ActiveWorkSessionError(WorkSessionTransitionError):
+    """Raised when a block already has a running or paused timer."""
+
+
+class InvalidWorkSessionStateError(WorkSessionTransitionError):
+    """Raised when a timer action does not match the session state."""
 
 
 # Each tuple is a stable key, learner-facing title, and planned duration.
@@ -126,3 +138,141 @@ def move_study_block(block: StudyBlock, direction: str) -> bool:
         ["position"],
     )
     return True
+
+
+def _transition_time(value=None):
+    return value or timezone.now()
+
+
+def _current_elapsed_seconds(session: WorkSession, now) -> int:
+    return session.elapsed_seconds_at(now)
+
+
+def format_elapsed_seconds(seconds: int) -> str:
+    """Format an elapsed duration for the learner-facing timer readout."""
+
+    hours, remainder = divmod(max(0, seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+@transaction.atomic
+def start_work_session(block: StudyBlock, now=None) -> WorkSession:
+    """Start a new timer run, allowing a fresh run after a stopped session."""
+
+    locked_block = StudyBlock.objects.select_for_update().get(pk=block.pk)
+    if WorkSession.objects.filter(
+        study_block=locked_block,
+        status__in=(WorkSession.Status.RUNNING, WorkSession.Status.PAUSED),
+    ).exists():
+        raise ActiveWorkSessionError("This study block already has an active timer.")
+
+    started_at = _transition_time(now)
+    try:
+        # Keep the insert in a savepoint so the conditional unique constraint can
+        # protect against a concurrent start even on databases where row locks
+        # do not serialize the two requests.
+        with transaction.atomic():
+            return WorkSession.objects.create(
+                study_block=locked_block,
+                status=WorkSession.Status.RUNNING,
+                started_at=started_at,
+                last_resumed_at=started_at,
+            )
+    except IntegrityError as error:
+        raise ActiveWorkSessionError(
+            "This study block already has an active timer."
+        ) from error
+
+
+@transaction.atomic
+def pause_work_session(session: WorkSession, now=None) -> WorkSession:
+    """Persist the current run segment and pause the timer."""
+
+    locked_session = WorkSession.objects.select_for_update().get(pk=session.pk)
+    if locked_session.status != WorkSession.Status.RUNNING:
+        raise InvalidWorkSessionStateError("Only a running timer can be paused.")
+
+    paused_at = _transition_time(now)
+    locked_session.elapsed_seconds = _current_elapsed_seconds(
+        locked_session,
+        paused_at,
+    )
+    locked_session.status = WorkSession.Status.PAUSED
+    locked_session.paused_at = paused_at
+    locked_session.save(
+        update_fields=(
+            "elapsed_seconds",
+            "status",
+            "paused_at",
+            "updated_at",
+        )
+    )
+    return locked_session
+
+
+@transaction.atomic
+def resume_work_session(session: WorkSession, now=None) -> WorkSession:
+    """Resume a paused timer without losing its persisted elapsed time."""
+
+    locked_session = WorkSession.objects.select_for_update().get(pk=session.pk)
+    if locked_session.status != WorkSession.Status.PAUSED:
+        raise InvalidWorkSessionStateError("Only a paused timer can be resumed.")
+
+    resumed_at = _transition_time(now)
+    locked_session.status = WorkSession.Status.RUNNING
+    locked_session.last_resumed_at = resumed_at
+    locked_session.paused_at = None
+    locked_session.save(
+        update_fields=(
+            "status",
+            "last_resumed_at",
+            "paused_at",
+            "updated_at",
+        )
+    )
+    return locked_session
+
+
+@transaction.atomic
+def stop_work_session(
+    session: WorkSession,
+    now=None,
+    *,
+    complete_block: bool = False,
+) -> WorkSession:
+    """Stop a timer and optionally complete its block by explicit choice."""
+
+    locked_session = WorkSession.objects.select_for_update().get(pk=session.pk)
+    if locked_session.status not in {
+        WorkSession.Status.RUNNING,
+        WorkSession.Status.PAUSED,
+    }:
+        raise InvalidWorkSessionStateError(
+            "Only a running or paused timer can be stopped."
+        )
+
+    stopped_at = _transition_time(now)
+    locked_session.elapsed_seconds = _current_elapsed_seconds(
+        locked_session,
+        stopped_at,
+    )
+    locked_session.status = WorkSession.Status.STOPPED
+    locked_session.stopped_at = stopped_at
+    locked_session.save(
+        update_fields=(
+            "elapsed_seconds",
+            "status",
+            "stopped_at",
+            "updated_at",
+        )
+    )
+
+    if complete_block:
+        block = StudyBlock.objects.select_for_update().get(
+            pk=locked_session.study_block_id
+        )
+        block.status = StudyBlock.Status.COMPLETED
+        block.save(update_fields=("status", "updated_at"))
+
+    return locked_session

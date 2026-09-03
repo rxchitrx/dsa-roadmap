@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Today · DSA Roadmap</title>
     <link rel="stylesheet" href="{% static 'planner/today.css' %}">
+    <link rel="stylesheet" href="{% static 'planner/timer.css' %}">
+    <script src="{% static 'planner/timer.js' %}" defer></script>
   </head>
   <body>
     <main class="today-shell">
@@ -16,6 +18,9 @@
       </header>
 
       <section class="plan-section" aria-labelledby="plan-heading">
+        {% if timer_error %}
+          <div class="timer-error" role="alert" data-testid="timer-error">{{ timer_error }}</div>
+        {% endif %}
         <div class="section-heading-row">
           <div class="section-heading">
             <p class="eyebrow">YOUR NEXT STEP</p>
@@ -62,6 +67,7 @@
                     {{ block.get_status_display }}
                   </span>
                 </div>
+                {% include "planner/_timer_controls.html" with block=block %}
               </article>
             {% endfor %}
           </div>

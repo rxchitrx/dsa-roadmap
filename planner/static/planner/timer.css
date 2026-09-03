@@ -1,0 +1,144 @@
+.timer-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.study-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.study-block .timer-panel,
+.plan-item .timer-panel {
+  grid-column: 1 / -1;
+}
+
+.plan-item {
+  flex-wrap: wrap;
+}
+
+.plan-item .timer-panel {
+  flex: 1 0 100%;
+}
+
+.timer-readout-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.timer-label,
+.timer-state,
+.timer-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.timer-label {
+  color: var(--amber);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timer-readout {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.timer-state {
+  font-weight: 650;
+}
+
+.timer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.timer-actions form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.timer-button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 13px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.timer-button:hover,
+.timer-button:focus-visible {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.timer-button--primary {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.timer-button--primary:hover,
+.timer-button--primary:focus-visible {
+  background: #f1bd68;
+  color: var(--ink);
+}
+
+.completion-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.completion-choice input {
+  width: auto;
+  accent-color: var(--amber);
+}
+
+.timer-error {
+  margin-bottom: 18px;
+  border: 1px solid color-mix(in srgb, var(--danger, #e58d7c) 65%, var(--border));
+  border-radius: 10px;
+  padding: 13px 15px;
+  color: var(--danger, #e58d7c);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 720px) {
+  .study-block {
+    grid-template-columns: 1fr;
+  }
+
+  .timer-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .timer-actions {
+    justify-content: flex-start;
+  }
+}
