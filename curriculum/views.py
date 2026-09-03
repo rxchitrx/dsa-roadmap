@@ -8,6 +8,7 @@ from .models import Concept, Topic
 from .services import (
     PrerequisiteGraphError,
     add_prerequisite,
+    recommend_next_concept,
     remove_prerequisite,
 )
 
@@ -28,6 +29,15 @@ def concept_detail(request, concept_slug):
         slug=concept_slug,
     )
     return render(request, "curriculum/concept_detail.html", {"concept": concept})
+
+
+def concept_recommendation(request):
+    recommendation = recommend_next_concept()
+    return render(
+        request,
+        "curriculum/recommendation.html",
+        {"recommendation": recommendation},
+    )
 
 
 def prerequisite_graph(request):

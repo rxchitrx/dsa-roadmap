@@ -192,6 +192,23 @@ pre { overflow-x: auto; margin: 18px 0 0; border: 1px solid var(--border); borde
 .practice-card--accent { border-color: #765d34; background: #211c15; }
 .practice-card p:last-child { margin-bottom: 0; }
 
+.recommendation-header { max-width: 860px; }
+.recommendation-card { margin-top: 52px; border: 1px solid #765d34; border-radius: 18px; background: var(--surface); padding: 34px; }
+.recommendation-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.recommendation-topic { margin: 14px 0 8px; color: var(--muted); font-size: 0.88rem; }
+.recommendation-card h2 { margin: 0 0 12px; font-size: clamp(2rem, 5vw, 3.7rem); letter-spacing: -0.06em; line-height: 1; }
+.recommendation-summary { max-width: 58ch; margin-bottom: 0; color: var(--muted); line-height: 1.65; }
+.recommendation-order { color: var(--amber); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; }
+.recommendation-detail { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 30px; margin-top: 32px; border-top: 1px solid var(--border); padding-top: 26px; }
+.recommendation-reason { margin-bottom: 0; color: var(--text); font-size: 1.04rem; line-height: 1.65; }
+.recommendation-evidence { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.recommendation-evidence li { border-left: 2px solid var(--amber); background: var(--surface-raised); padding: 11px 13px; color: var(--muted); line-height: 1.5; }
+.recommendation-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 32px; border: 1px solid #8f672e; border-radius: 8px; background: var(--amber); color: var(--ink); font-size: 0.9rem; font-weight: 750; padding: 12px 16px; text-decoration: none; }
+.recommendation-cta:hover, .recommendation-cta:focus-visible { background: var(--amber-soft); }
+.recommendation-empty { margin-top: 52px; }
+.recommendation-empty h2 { margin: 10px 0 12px; font-size: clamp(1.8rem, 4vw, 3rem); letter-spacing: -0.05em; }
+.recommendation-empty p:not(.eyebrow) { max-width: 62ch; line-height: 1.7; }
+
 @media (max-width: 760px) {
   .curriculum-shell, .lesson-shell { width: min(100% - 32px, 1080px); padding-top: 36px; }
   .back-link { margin-bottom: 32px; }
@@ -199,6 +216,7 @@ pre { overflow-x: auto; margin: 18px 0 0; border: 1px solid var(--border); borde
   .lesson-sidebar { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 34px; }
   .lesson-section--split, .practice-grid { grid-template-columns: 1fr; }
   .graph-card-body { grid-template-columns: 1fr; }
+  .recommendation-detail { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -215,4 +233,7 @@ pre { overflow-x: auto; margin: 18px 0 0; border: 1px solid var(--border); borde
   .graph-card-heading { display: block; }
   .graph-lesson-link { display: inline-block; margin-top: 12px; }
   .edge-form-controls { display: grid; grid-template-columns: 1fr; }
+  .recommendation-card { padding: 24px; }
+  .recommendation-card-header { display: block; }
+  .recommendation-order { display: block; margin-top: 14px; }
 }

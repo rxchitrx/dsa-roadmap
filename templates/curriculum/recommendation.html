@@ -1,0 +1,59 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Next concept · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'curriculum/curriculum.css' %}">
+  </head>
+  <body>
+    <main class="curriculum-shell recommendation-shell" data-testid="concept-recommendation">
+      <header class="curriculum-header recommendation-header">
+        <a class="back-link" href="{% url 'curriculum:index' %}">← All concepts</a>
+        <a class="graph-nav-link" href="{% url 'curriculum:prerequisite_graph' %}">Edit prerequisite graph ↗</a>
+        <p class="eyebrow">DSA ROADMAP / NEXT STEP</p>
+        <h1>Know what to learn next.</h1>
+        <p class="lede">Your next Concept is chosen from the prerequisite graph and the evidence you have logged so far.</p>
+      </header>
+
+      {% if recommendation %}
+        <section class="recommendation-card" data-testid="recommendation-result" aria-labelledby="recommendation-heading">
+          <div class="recommendation-card-header">
+            <div>
+              <p class="eyebrow">RECOMMENDED CONCEPT</p>
+              <p class="recommendation-topic">{{ recommendation.concept.topic.name }}</p>
+              <h2 id="recommendation-heading">{{ recommendation.concept.name }}</h2>
+              <p class="recommendation-summary">{{ recommendation.concept.summary }}</p>
+            </div>
+            <span class="recommendation-order">Lesson {{ recommendation.concept.order|stringformat:"02d" }}</span>
+          </div>
+
+          <div class="recommendation-detail">
+            <div>
+              <p class="sidebar-label">Why this is next</p>
+              <p class="recommendation-reason">{{ recommendation.reason }}</p>
+            </div>
+            <div>
+              <p class="sidebar-label">Evidence used</p>
+              <ul class="recommendation-evidence">
+                {% for item in recommendation.evidence %}
+                  <li>{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+
+          <a class="recommendation-cta" href="{% url 'curriculum:concept_detail' concept_slug=recommendation.concept.slug %}">Open the lesson <span aria-hidden="true">↗</span></a>
+        </section>
+      {% else %}
+        <section class="empty-state recommendation-empty" data-testid="recommendation-empty">
+          <p class="eyebrow">ROADMAP PAUSED</p>
+          <h2>No Concept needs attention right now.</h2>
+          <p>Every Concept is either blocked by an unfinished prerequisite or has recent, confident evidence. Log another checkpoint or update the prerequisite graph when your path changes.</p>
+          <a class="recommendation-cta" href="{% url 'curriculum:index' %}">Review the curriculum <span aria-hidden="true">↗</span></a>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>
