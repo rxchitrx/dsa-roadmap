@@ -1,0 +1,143 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Problems · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'problems/problems.css' %}">
+  </head>
+  <body>
+    <main class="problems-shell" data-testid="problem-library">
+      <header class="problems-header">
+        <a class="back-link" href="/">← Today</a>
+        <p class="eyebrow">DSA ROADMAP / PROBLEM LIBRARY</p>
+        <h1>Choose the next problem.</h1>
+        <p class="lede">
+          A local catalog for deliberate practice. Filter by where the problem belongs and
+          search by the words you remember.
+        </p>
+      </header>
+
+      <section class="library-toolbar" aria-labelledby="filter-heading">
+        <div class="section-heading">
+          <p class="eyebrow">PRACTICE CATALOG</p>
+          <h2 id="filter-heading">Find a problem</h2>
+        </div>
+        <form class="filter-form" method="get" data-testid="problem-filters">
+          <label class="search-field">
+            <span>Search</span>
+            <input
+              type="search"
+              name="q"
+              value="{{ search_query }}"
+              placeholder="Try two pointers or palindrome"
+              autocomplete="off"
+            >
+          </label>
+          <label>
+            <span>Topic</span>
+            <select name="topic">
+              <option value="">All topics</option>
+              {% for topic in topics %}
+                <option value="{{ topic.slug }}"{% if selected_topic == topic.slug %} selected{% endif %}>
+                  {{ topic.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Concept</span>
+            <select name="concept">
+              <option value="">All concepts</option>
+              {% for concept in concepts %}
+                <option value="{{ concept.slug }}"{% if selected_concept == concept.slug %} selected{% endif %}>
+                  {{ concept.name }} · {{ concept.topic.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Difficulty</span>
+            <select name="difficulty">
+              <option value="">Any difficulty</option>
+              {% for value, label in difficulties %}
+                <option value="{{ value }}"{% if selected_difficulty == value %} selected{% endif %}>
+                  {{ label }}
+                </option>
+              {% endfor %}
+              <option value="unknown"{% if selected_difficulty == 'unknown' %} selected{% endif %}>
+                Not set
+              </option>
+            </select>
+          </label>
+          <button class="primary-button" type="submit">Apply filters</button>
+          {% if has_filters %}<a class="clear-link" href="{% url 'problems:index' %}">Clear</a>{% endif %}
+        </form>
+      </section>
+
+      <section class="library-results" aria-labelledby="results-heading">
+        <div class="results-heading">
+          <div>
+            <p class="eyebrow">{{ result_count }} OF {{ catalog_count }} PROBLEMS</p>
+            <h2 id="results-heading">Your practice shelf</h2>
+          </div>
+          {% if missing_metadata_count %}
+            <p class="metadata-summary" data-testid="metadata-summary">
+              {{ missing_metadata_count }} problem{{ missing_metadata_count|pluralize }} need metadata review.
+            </p>
+          {% endif %}
+        </div>
+
+        {% if problems %}
+          <div class="problem-list">
+            {% for problem in problems %}
+              <article class="problem-card" data-testid="problem-card">
+                <div class="problem-card-topline">
+                  <div class="problem-tags">
+                    {% if problem.difficulty %}
+                      <span class="difficulty difficulty--{{ problem.difficulty }}">{{ problem.get_difficulty_display }}</span>
+                    {% else %}
+                      <span class="metadata-warning">Difficulty not set</span>
+                    {% endif %}
+                    {% if problem.source_name %}
+                      <span class="source-label">{{ problem.source_name }}{% if problem.source_problem_id %} · {{ problem.source_problem_id }}{% endif %}</span>
+                    {% else %}
+                      <span class="metadata-warning">Source not set</span>
+                    {% endif %}
+                  </div>
+                  <span class="problem-number">{{ forloop.counter|stringformat:"02d" }}</span>
+                </div>
+                <h3>{{ problem.title }}</h3>
+                <p class="problem-statement">{{ problem.statement }}</p>
+                <div class="problem-card-footer">
+                  {% if problem.concept %}
+                    <span class="concept-path">{{ problem.concept.topic.name }} <span aria-hidden="true">/</span> {{ problem.concept.name }}</span>
+                  {% else %}
+                    <span class="metadata-warning">Needs concept classification</span>
+                  {% endif %}
+                  {% if problem.tags %}
+                    <span class="tag-list">{% for tag in problem.tags %}#{{ tag }}{% if not forloop.last %} {% endif %}{% endfor %}</span>
+                  {% endif %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state" data-testid="problem-empty">
+            {% if has_filters %}
+              <p class="empty-kicker">NO MATCHES</p>
+              <h3>That combination is empty.</h3>
+              <p>Try clearing one filter or searching for a broader pattern. Your catalog is still safe.</p>
+              <a class="secondary-button" href="{% url 'problems:index' %}">Show all problems</a>
+            {% else %}
+              <p class="empty-kicker">YOUR SHELF IS EMPTY</p>
+              <h3>Seed the first practice set.</h3>
+              <p>Once representative problems are loaded, they will appear here grouped by their curriculum context.</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

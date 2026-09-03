@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "curriculum",
     "planner",
     "progress",
+    "problems",
 ]
 
 MIDDLEWARE = [
