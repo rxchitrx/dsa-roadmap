@@ -8,6 +8,7 @@ app_name = "planner"
 urlpatterns = [
     path("", views.today, name="today"),
     path("today/", views.today, name="today_page"),
+    path("summary/", views.weekly_summary, name="weekly_summary"),
     path(
         "routine/generate/",
         views.generate_weekly_routine_view,

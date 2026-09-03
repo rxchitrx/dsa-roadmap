@@ -14,8 +14,13 @@
     <main class="today-shell">
       <header class="today-header">
         <p class="eyebrow">DSA ROADMAP / TODAY</p>
-        <h1>Today</h1>
-        <time datetime="{{ today|date:'Y-m-d' }}">{{ today|date:'l, F j, Y' }}</time>
+        <div class="today-title-row">
+          <div>
+            <h1>Today</h1>
+            <time datetime="{{ today|date:'Y-m-d' }}">{{ today|date:'l, F j, Y' }}</time>
+          </div>
+          <a class="summary-link" href="{% url 'planner:weekly_summary' %}">Weekly summary →</a>
+        </div>
       </header>
 
       <section class="plan-section" aria-labelledby="plan-heading">

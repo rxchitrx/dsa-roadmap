@@ -1,0 +1,153 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weekly summary · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'planner/summary.css' %}">
+  </head>
+  <body>
+    <main class="summary-shell" data-testid="weekly-summary">
+      <header class="summary-header">
+        <div>
+          <p class="eyebrow">DSA ROADMAP / WEEKLY SUMMARY</p>
+          <h1>What moved this week?</h1>
+          <p class="date-range">{{ summary.week_start|date:"M j" }} – {{ summary.week_end|date:"M j, Y" }}</p>
+        </div>
+        <nav class="summary-nav" aria-label="Summary navigation">
+          <a href="?week={{ previous_week|date:'Y-m-d' }}">← Previous</a>
+          <a href="{% url 'planner:today' %}">Today</a>
+          <a href="?week={{ next_week|date:'Y-m-d' }}">Next →</a>
+        </nav>
+      </header>
+
+      <section class="summary-hero" data-testid="summary-overview">
+        <div>
+          <p class="eyebrow">TIME EVIDENCE</p>
+          <h2>{{ summary.totals.completed_minutes }} of {{ summary.totals.planned_minutes }} planned minutes logged</h2>
+          <p class="muted">Logged time comes from stopped Work Sessions. A completed block without a timer remains visible as completed work, but does not invent minutes.</p>
+        </div>
+        <div class="hero-stat">
+          <strong>{{ summary.totals.completed_block_count }}/{{ summary.totals.block_count }}</strong>
+          <span>blocks complete</span>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-panel" data-testid="summary-by-day">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">MONDAY – SUNDAY</p>
+              <h2>Planned versus logged</h2>
+            </div>
+          </div>
+          <div class="day-summary-list">
+            {% for day in summary.days %}
+              <div class="day-summary-row">
+                <div>
+                  <strong>{{ day.label }}</strong>
+                  <span>{{ day.block_count }} block{{ day.block_count|pluralize }}</span>
+                </div>
+                <div class="day-summary-metrics">
+                  <strong>{{ day.completed_minutes }} / {{ day.planned_minutes }} min</strong>
+                  <span>{{ day.completed_block_count }} complete</span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="summary-panel" data-testid="summary-by-type">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">BLOCK TYPES</p>
+              <h2>Where the time went</h2>
+            </div>
+          </div>
+          {% if summary.by_type %}
+            <div class="type-summary-list">
+              {% for item in summary.by_type %}
+                <div class="type-summary-row">
+                  <div>
+                    <strong>{{ item.label }}</strong>
+                    <span>{{ item.completed_block_count }}/{{ item.block_count }} blocks complete</span>
+                  </div>
+                  <strong>{{ item.completed_minutes }} / {{ item.planned_minutes }} min</strong>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="empty-copy" data-testid="summary-empty-types">No Study Blocks were recorded for this week.</p>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-panel" data-testid="summary-reviews">
+          <p class="eyebrow">RETENTION LOOP</p>
+          <h2>{{ summary.reviews.completed_count }} review{{ summary.reviews.completed_count|pluralize }} logged</h2>
+          <p class="muted">{{ summary.reviews.due_remaining }} review{{ summary.reviews.due_remaining|pluralize }} due by the end of this week.</p>
+          {% if summary.reviews.counts %}
+            <ul class="compact-list">
+              {% for rating, count in summary.reviews.counts.items %}
+                <li><span>{{ rating|cut:"_"|title }}</span><strong>{{ count }}</strong></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <a class="panel-link" href="{% url 'reviews:due_queue' %}">Open due-review queue →</a>
+        </article>
+
+        <article class="summary-panel" data-testid="summary-assessment">
+          <p class="eyebrow">SATURDAY ASSESSMENT</p>
+          {% if summary.assessment %}
+            <h2>{{ summary.assessment.score_label }}</h2>
+            <p class="muted">{{ summary.assessment.status_label }} · Current week: {{ summary.assessment.current_week_score_label }}</p>
+            {% if summary.assessment.fallback_total %}<p class="muted">Older-Concept fallback: {{ summary.assessment.fallback_score_label }}</p>{% endif %}
+            <p class="assessment-mistake-count">{{ summary.assessment.mistakes_remaining }} mistake{{ summary.assessment.mistakes_remaining|pluralize }} still incomplete.</p>
+            {% if summary.assessment.mistakes_remaining %}
+              <a class="panel-link" href="{% url 'assessments:assessment_mistakes' session_id=summary.assessment.session_id %}">Review Assessment mistakes →</a>
+            {% else %}
+              <a class="panel-link" href="{% url 'assessments:assessment_session' session_id=summary.assessment.session_id %}">Open Assessment result →</a>
+            {% endif %}
+          {% else %}
+            <h2>No Assessment recorded</h2>
+            <p class="muted">The selected week has no Saturday Assessment session yet.</p>
+            <a class="panel-link" href="{% url 'assessments:saturday_pool' %}?week={{ summary.week_start|date:'Y-m-d' }}">Open Saturday Assessment →</a>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-panel" data-testid="summary-practice">
+          <p class="eyebrow">PROBLEM SOLVING</p>
+          <h2>{{ summary.practice.run_count }} run{{ summary.practice.run_count|pluralize }} recorded</h2>
+          <p class="muted">{{ summary.practice.passed_count }} passed · {{ summary.practice.failed_count }} need another look.</p>
+        </article>
+        <article class="summary-panel" data-testid="summary-carry-forward">
+          <p class="eyebrow">BACKLOG</p>
+          <h2>{{ summary.totals.pending_block_count }} unfinished block{{ summary.totals.pending_block_count|pluralize }}</h2>
+          <p class="muted">{{ summary.totals.carried_forward_count }} carried forward into this week. Rest days and saved blocks remain part of the record.</p>
+          <a class="panel-link" href="{% url 'planner:weekly_plan' %}">Open weekly plan →</a>
+        </article>
+      </section>
+
+      <section class="next-actions" data-testid="summary-next-actions">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">NEXT ACTIONS</p>
+            <h2>Change one thing next</h2>
+          </div>
+        </div>
+        <div class="action-list">
+          {% for action in summary.next_actions %}
+            <a class="action-row" href="{{ action.url }}">
+              <span class="action-arrow">→</span>
+              <span><strong>{{ action.title }}</strong><small>{{ action.body }}</small></span>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

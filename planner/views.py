@@ -2,8 +2,9 @@ from datetime import datetime, timedelta
 
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from reviews.services import due_review_queue
 
@@ -28,6 +29,7 @@ from .services import (
     WorkSessionTransitionError,
     week_start_for,
 )
+from .summary import get_weekly_summary
 
 
 def _decorate_with_timer_sessions(study_blocks):
@@ -96,6 +98,41 @@ def _today_context(today_date=None, timer_error=None):
 
 def today(request):
     return render(request, "planner/today.html", _today_context())
+
+
+@require_GET
+def weekly_summary(request):
+    raw_week = request.GET.get("week")
+    if raw_week:
+        requested_date = _parse_day_date(raw_week)
+        if requested_date is None:
+            return HttpResponseBadRequest("Use a valid week date in YYYY-MM-DD format.")
+    else:
+        requested_date = timezone.localdate()
+
+    summary = get_weekly_summary(week_start_for(requested_date))
+    for action in summary["next_actions"]:
+        if action["key"] == "unfinished_blocks":
+            action["url"] = reverse("planner:weekly_plan")
+        elif action["key"] == "due_reviews":
+            action["url"] = reverse("reviews:due_queue")
+        elif action["key"] == "assessment_mistakes":
+            action["url"] = reverse(
+                "assessments:assessment_mistakes",
+                kwargs={"session_id": action["session_id"]},
+            )
+        else:
+            action["url"] = reverse("planner:today")
+
+    return render(
+        request,
+        "planner/weekly_summary.html",
+        {
+            "summary": summary,
+            "previous_week": summary["week_start"] - timedelta(days=7),
+            "next_week": summary["week_start"] + timedelta(days=7),
+        },
+    )
 
 
 @require_POST
