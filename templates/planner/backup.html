@@ -1,0 +1,26 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Backup · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'planner/backup.css' %}">
+  </head>
+  <body>
+    <main class="backup-shell" data-testid="backup-center">
+      <header class="backup-header">
+        <div><p class="eyebrow">DSA ROADMAP / PORTABILITY</p><h1>Backup your journey</h1><p class="muted">Keep your study history portable and recoverable.</p></div>
+        <nav aria-label="Backup navigation"><a href="{% url 'planner:today' %}">Today</a><a href="{% url 'planner:weekly_summary' %}">Weekly summary</a></nav>
+      </header>
+
+      {% if restored %}<div class="notice notice--success" data-testid="backup-restored">Restore complete. A safety copy was created before replacement.</div>{% endif %}
+      {% if backup_error %}<div class="notice notice--error" data-testid="backup-error" role="alert">{{ backup_error }}</div>{% endif %}
+
+      <div class="backup-grid">
+        <section class="backup-panel"><p class="eyebrow">EXPORT</p><h2>Save a JSON backup</h2><p class="muted">Includes your routine, curriculum progress, Problems, code history, reviews, assessments, mistakes, and historical snapshots.</p><a class="primary-button" href="{% url 'planner:backup_export' %}">Download full backup</a></section>
+        <section class="backup-panel"><p class="eyebrow">RESTORE</p><h2>Restore a journey</h2><p class="muted">The file is validated before anything changes. Your current data is saved as a safety copy first.</p><form method="post" action="{% url 'planner:backup_restore' %}" enctype="multipart/form-data">{% csrf_token %}<label for="backup-file">JSON backup file</label><input id="backup-file" name="backup" type="file" accept="application/json,.json" required><button class="primary-button" type="submit">Validate and restore</button></form></section>
+      </div>
+    </main>
+  </body>
+</html>

@@ -19,7 +19,9 @@
             <a href="?week={{ previous_week|date:'Y-m-d' }}">← Previous</a>
             <a href="{% url 'planner:today' %}">Today</a>
             <a href="{% url 'planner:progress_analytics' %}?start={{ summary.week_start|date:'Y-m-d' }}&end={{ summary.week_end|date:'Y-m-d' }}">Analytics</a>
+            <a href="{% url 'planner:weekly_csv_export' %}?week={{ summary.week_start|date:'Y-m-d' }}">Download CSV</a>
             <a href="{% url 'planner:next_week_plan' %}">Plan next week</a>
+            <a href="{% url 'planner:backup_center' %}">Backup</a>
             <a href="?week={{ next_week|date:'Y-m-d' }}">Next →</a>
           </nav>
       </header>

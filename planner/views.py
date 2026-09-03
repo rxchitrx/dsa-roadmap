@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -31,6 +32,13 @@ from .services import (
 )
 from .summary import get_weekly_summary
 from .analytics import get_progress_analytics, resolve_analytics_range
+from .backup import (
+    BackupRestoreError,
+    BackupValidationError,
+    export_backup_json,
+    restore_backup,
+)
+from .exports import export_weekly_csv
 from .next_week import (
     NextWeekPlanError,
     edit_next_week_plan,
@@ -164,6 +172,66 @@ def progress_analytics(request):
         request,
         "planner/analytics.html",
         {"analytics": analytics},
+    )
+
+
+@require_GET
+def weekly_csv_export(request):
+    """Download the import-friendly CSV for the selected calendar week."""
+
+    raw_week = request.GET.get("week")
+    selected_date = _parse_day_date(raw_week) if raw_week else None
+    if raw_week and selected_date is None:
+        return HttpResponseBadRequest("Use a valid week date in YYYY-MM-DD format.")
+    week_start = week_start_for(selected_date or timezone.localdate())
+    response = HttpResponse(
+        export_weekly_csv(selected_date),
+        content_type="text/csv; charset=utf-8",
+    )
+    response["Content-Disposition"] = (
+        f'attachment; filename="dsa-roadmap-week-{week_start.isoformat()}.csv"'
+    )
+    return response
+
+
+@require_GET
+def backup_center(request):
+    return render(request, "planner/backup.html")
+
+
+@require_GET
+def backup_export(request):
+    response = HttpResponse(
+        export_backup_json(),
+        content_type="application/json; charset=utf-8",
+    )
+    response["Content-Disposition"] = 'attachment; filename="dsa-roadmap-backup.json"'
+    return response
+
+
+@require_POST
+def backup_restore(request):
+    upload = request.FILES.get("backup")
+    if upload is None:
+        return render(
+            request,
+            "planner/backup.html",
+            {"backup_error": "Choose a JSON backup file first."},
+            status=400,
+        )
+    try:
+        result = restore_backup(upload)
+    except (BackupValidationError, BackupRestoreError, ValidationError) as error:
+        return render(
+            request,
+            "planner/backup.html",
+            {"backup_error": str(error)},
+            status=400,
+        )
+    return render(
+        request,
+        "planner/backup.html",
+        {"restored": True, "safety_export_path": result.safety_export_path.name},
     )
 
 

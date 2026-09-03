@@ -10,6 +10,10 @@ urlpatterns = [
     path("today/", views.today, name="today_page"),
     path("summary/", views.weekly_summary, name="weekly_summary"),
     path("analytics/", views.progress_analytics, name="progress_analytics"),
+    path("export/csv/", views.weekly_csv_export, name="weekly_csv_export"),
+    path("backup/", views.backup_center, name="backup_center"),
+    path("backup/export/", views.backup_export, name="backup_export"),
+    path("backup/restore/", views.backup_restore, name="backup_restore"),
     path("next-week/", views.next_week_plan_preview, name="next_week_plan"),
     path("next-week/save/", views.save_next_week_plan_view, name="save_next_week_plan"),
     path(
