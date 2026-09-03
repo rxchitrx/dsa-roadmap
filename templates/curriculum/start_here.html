@@ -1,0 +1,110 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Start here · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'curriculum/curriculum.css' %}">
+    <link rel="stylesheet" href="{% static 'curriculum/start_here.css' %}">
+  </head>
+  <body>
+    <main class="start-here-shell" data-testid="start-here-page">
+      <header class="start-here-header">
+        <div class="start-here-nav">
+          <a class="back-link" href="{% url 'planner:today' %}">← Today</a>
+          <a class="graph-nav-link" href="{% url 'curriculum:index' %}">Main curriculum ↗</a>
+        </div>
+        <p class="eyebrow">DSA ROADMAP / START HERE</p>
+        <h1>Your first two weeks.</h1>
+        <p class="lede">A practical runway before the full DSA sequence. Build enough Python, reasoning, and debugging fluency to start honestly—without pretending that two weeks equals prerequisite mastery.</p>
+        <div class="start-here-callout">
+          <strong>How to use this:</strong>
+          <span>Do the exercise before reading a solution. Record the first wrong idea. If a readiness check is weak on Day 14, repeat that day and continue with the main roadmap when the evidence is good enough—not when everything feels perfect.</span>
+        </div>
+      </header>
+
+      <section class="research-summary" aria-labelledby="research-heading" data-testid="start-here-research-summary">
+        <div>
+          <p class="eyebrow">WHY THIS ORDER</p>
+          <h2 id="research-heading">The launchpad has four jobs.</h2>
+        </div>
+        <div class="research-summary-grid">
+          <div><span class="research-number">01</span><strong>Python fluency</strong><p>Use core structures and read the cost of common operations.</p></div>
+          <div><span class="research-number">02</span><strong>Algorithmic reasoning</strong><p>State contracts, baselines, invariants, and complexity before code.</p></div>
+          <div><span class="research-number">03</span><strong>Foundations</strong><p>Trace recursion and use light discrete-math language for proofs.</p></div>
+          <div><span class="research-number">04</span><strong>Evidence</strong><p>Retrieve, implement, test, explain, and schedule the next correction.</p></div>
+        </div>
+      </section>
+
+      <section class="day-plan" aria-labelledby="day-plan-heading">
+        <div class="section-heading">
+          <p class="eyebrow">14-DAY RUNWAY</p>
+          <h2 id="day-plan-heading">One day, one observable outcome.</h2>
+        </div>
+
+        <div class="day-list">
+          {% for day in days %}
+            <article class="day-card" data-testid="start-here-day" data-day-number="{{ day.number }}">
+              <div class="day-card-topline">
+                <span class="day-number">DAY {{ day.number|stringformat:'02d' }}</span>
+                <span class="day-minutes">{{ day.minutes }} min</span>
+              </div>
+              <div class="day-card-heading">
+                <h3>{{ day.title }}</h3>
+                <p>{{ day.objective }}</p>
+              </div>
+
+              <div class="day-columns">
+                <section>
+                  <h4>Study and revise</h4>
+                  <ul>
+                    {% for item in day.study %}<li>{{ item }}</li>{% endfor %}
+                  </ul>
+                </section>
+                <section>
+                  <h4>Do this</h4>
+                  <ul>
+                    {% for item in day.exercises %}<li>{{ item }}</li>{% endfor %}
+                  </ul>
+                </section>
+              </div>
+
+              <div class="readiness-row">
+                <span class="readiness-label">READINESS EVIDENCE</span>
+                <p>{{ day.readiness }}</p>
+              </div>
+
+              {% if day.heuristic_note %}
+                <p class="heuristic-note"><span>Product note</span> {{ day.heuristic_note }}</p>
+              {% endif %}
+
+              {% if day.sources %}
+                <div class="day-sources">
+                  <span class="source-label">RESEARCH ANCHORS</span>
+                  {% for source in day.sources %}
+                    <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer" data-testid="start-here-source">{{ source.title }}</a>{% if not forloop.last %}<span aria-hidden="true">·</span>{% endif %}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="readiness-panel" aria-labelledby="readiness-heading" data-testid="start-here-readiness">
+        <div>
+          <p class="eyebrow">DAY 14 CHECK</p>
+          <h2 id="readiness-heading">Ready enough to begin.</h2>
+          <p>These are evidence prompts, not a gate or a score. Tick them in your own notes as you demonstrate them.</p>
+        </div>
+        <ol class="readiness-list">
+          {% for check in readiness_checks %}
+            <li><span aria-hidden="true">{{ forloop.counter|stringformat:'02d' }}</span>{{ check }}</li>
+          {% endfor %}
+        </ol>
+        <a class="primary-button" href="{% url 'curriculum:index' %}">Open the main roadmap →</a>
+      </section>
+    </main>
+  </body>
+</html>

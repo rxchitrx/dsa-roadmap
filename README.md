@@ -4,7 +4,7 @@ A local-first DSA learning workspace for planning practice, solving Python probl
 
 ## Current status
 
-This repository contains the initial public project scaffold and product PRD. The application will be built incrementally around a complete weekly learning loop.
+The application is a usable local-first learning workspace with a complete weekly loop, a full seeded curriculum, and a researched 14-day Start here runway for first-time learners.
 
 ## Product direction
 
@@ -26,6 +26,8 @@ uv run python manage.py runserver
 ```
 
 Then open <http://127.0.0.1:8000/>.
+
+If you are starting from zero, open **Start here** from Today or Curriculum. The source ledger and research boundaries are documented in [docs/START_HERE.md](docs/START_HERE.md).
 
 Local application data belongs in the ignored SQLite database and backup files. Do not commit personal study history, credentials, or generated catalog data.
 

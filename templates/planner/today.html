@@ -24,9 +24,19 @@
             <a href="{% url 'planner:progress_analytics' %}">Analytics →</a>
             <a href="{% url 'planner:next_week_plan' %}">Plan next week →</a>
             <a href="{% url 'planner:backup_center' %}">Backup →</a>
+            <a href="/curriculum/start-here/" data-testid="start-here-link">Start here →</a>
           </nav>
         </div>
       </header>
+
+      <section class="start-here-prompt" aria-labelledby="start-here-heading" data-testid="start-here-entrypoint">
+        <div>
+          <p class="eyebrow">NEW TO THIS ROADMAP?</p>
+          <h2 id="start-here-heading">Build your runway first.</h2>
+          <p>Use the researched first-two-weeks path to brush up Python, complexity, invariants, debugging, recursion, and discrete foundations before the main DSA sequence.</p>
+        </div>
+        <a class="primary-button" href="/curriculum/start-here/">Open first two weeks →</a>
+      </section>
 
       <section class="plan-section" aria-labelledby="plan-heading">
         {% if timer_error %}

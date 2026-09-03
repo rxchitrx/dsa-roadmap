@@ -11,6 +11,11 @@ from .services import (
     recommend_next_concept,
     remove_prerequisite,
 )
+from .start_here import (
+    START_HERE_DAYS,
+    START_HERE_READINESS_CHECKS,
+    START_HERE_SOURCES,
+)
 
 
 def curriculum_index(request):
@@ -18,6 +23,26 @@ def curriculum_index(request):
         Prefetch("concepts", queryset=Concept.objects.order_by("order", "id"))
     )
     return render(request, "curriculum/index.html", {"topics": topics})
+
+
+def start_here(request):
+    """Render the finite first-two-weeks runway before the main roadmap."""
+
+    days = [
+        {
+            **day,
+            "sources": [START_HERE_SOURCES[key] for key in day["source_keys"]],
+        }
+        for day in START_HERE_DAYS
+    ]
+    return render(
+        request,
+        "curriculum/start_here.html",
+        {
+            "days": days,
+            "readiness_checks": START_HERE_READINESS_CHECKS,
+        },
+    )
 
 
 def concept_detail(request, concept_slug):

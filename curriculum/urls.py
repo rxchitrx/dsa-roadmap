@@ -7,6 +7,7 @@ app_name = "curriculum"
 
 urlpatterns = [
     path("", views.curriculum_index, name="index"),
+    path("start-here/", views.start_here, name="start_here"),
     path("recommendation/", views.concept_recommendation, name="recommendation"),
     path("graph/", views.prerequisite_graph, name="prerequisite_graph"),
     path(
