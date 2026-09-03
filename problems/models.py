@@ -45,6 +45,7 @@ class Problem(models.Model):
     source_name = models.CharField(max_length=100, blank=True)
     source_problem_id = models.CharField(max_length=100, blank=True)
     source_url = models.URLField(blank=True)
+    is_paid_only = models.BooleanField(default=False)
     examples = models.JSONField(default=list, blank=True)
     tags = models.JSONField(default=list, blank=True)
     display_order = models.PositiveIntegerField(
@@ -122,6 +123,57 @@ class Problem(models.Model):
     @property
     def has_classification_warning(self) -> bool:
         return self.classification_warning_state is not None
+
+
+class CatalogSync(models.Model):
+    """A visible, resumable-in-practice record of a public catalog sync run."""
+
+    class Status(models.TextChoices):
+        RUNNING = "running", "Syncing"
+        SUCCEEDED = "succeeded", "Completed"
+        FAILED = "failed", "Failed"
+
+    source_name = models.CharField(max_length=100, default="LeetCode")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.RUNNING,
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(blank=True, null=True)
+    last_success_at = models.DateTimeField(blank=True, null=True)
+    total_items = models.PositiveIntegerField(default=0)
+    processed_items = models.PositiveIntegerField(default=0)
+    imported_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    deactivated_count = models.PositiveIntegerField(default=0)
+    classification_warning_count = models.PositiveIntegerField(default=0)
+    current_batch = models.PositiveIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-started_at", "-id")
+        indexes = [
+            models.Index(fields=("source_name", "status")),
+            models.Index(fields=("source_name", "-started_at")),
+        ]
+
+    @property
+    def is_running(self) -> bool:
+        return self.status == self.Status.RUNNING
+
+    @property
+    def is_successful(self) -> bool:
+        return self.status == self.Status.SUCCEEDED
+
+    @property
+    def progress_label(self) -> str:
+        if self.total_items:
+            return f"{self.processed_items} of {self.total_items} problems"
+        return f"{self.processed_items} problems"
+
+    def __str__(self) -> str:
+        return f"{self.source_name} catalog sync ({self.get_status_display()})"
 
 
 class ProblemClassification(models.Model):

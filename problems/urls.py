@@ -7,6 +7,8 @@ app_name = "problems"
 
 urlpatterns = [
     path("", views.problems_index, name="index"),
+    path("sync/", views.sync_catalog, name="sync"),
+    path("sync/status/", views.catalog_sync_status, name="sync_status"),
     path(
         "<slug:slug>/classifications/add/",
         views.add_problem_classification,

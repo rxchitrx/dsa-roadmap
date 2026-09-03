@@ -81,6 +81,24 @@ h2 { letter-spacing: -0.035em; }
   line-height: 1.7;
 }
 
+.catalog-sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 28px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  background: var(--surface);
+}
+.catalog-sync h2 { margin: 7px 0 7px; font-size: 1.15rem; }
+.sync-copy,
+.sync-safe-note { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.55; }
+.sync-copy--error { color: var(--red); }
+.sync-safe-note { margin-top: 5px; color: var(--amber-soft); }
+.catalog-sync button[disabled] { cursor: wait; opacity: 0.7; }
+
 .library-toolbar,
 .library-results { padding-top: 50px; }
 
@@ -311,4 +329,5 @@ input:focus-visible, select:focus-visible { border-color: var(--amber); outline:
   .results-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
   .problem-card { padding: 22px; }
   .problem-card-footer { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .catalog-sync { align-items: flex-start; flex-direction: column; }
 }

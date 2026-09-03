@@ -23,6 +23,7 @@
             {% else %}
               <span class="metadata-warning">Source not set</span>
             {% endif %}
+            {% if problem.is_paid_only %}<span class="metadata-warning">Paid-only</span>{% endif %}
           </div>
         </div>
         <p class="eyebrow">DSA ROADMAP / PRACTICE PROBLEM</p>

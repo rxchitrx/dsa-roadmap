@@ -1,13 +1,16 @@
 from urllib.parse import urlsplit
 
+from django.contrib import messages
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from curriculum.models import Concept, Topic
 
 from .forms import ProblemClassificationForm
-from .models import Problem, ProblemClassification
+from .catalog_sync import CatalogSyncError, sync_catalog as run_catalog_sync
+from .models import CatalogSync, Problem, ProblemClassification
 from .services import add_classification, remove_classification
 
 
@@ -100,7 +103,49 @@ def problems_index(request):
                 or selected_concept
                 or selected_difficulty
             ),
+            "latest_sync": CatalogSync.objects.first(),
+            "last_successful_sync": CatalogSync.objects.filter(
+                status=CatalogSync.Status.SUCCEEDED
+            ).first(),
         },
+    )
+
+
+@require_POST
+def sync_catalog(request):
+    """Start a public LeetCode sync and return to the safe local catalog."""
+
+    try:
+        run_catalog_sync()
+    except CatalogSyncError as exc:
+        messages.error(request, f"LeetCode catalog sync failed: {exc}")
+    else:
+        messages.success(request, "LeetCode catalog sync completed.")
+    return redirect("problems:index")
+
+
+def catalog_sync_status(request):
+    """Expose the persisted progress state for a lightweight status poll."""
+
+    run = CatalogSync.objects.first()
+    if run is None:
+        return JsonResponse({"status": "never_run", "message": "No catalog sync has run yet."})
+
+    return JsonResponse(
+        {
+            "status": run.status,
+            "label": run.get_status_display(),
+            "progress": run.progress_label,
+            "processed_items": run.processed_items,
+            "total_items": run.total_items,
+            "imported_count": run.imported_count,
+            "updated_count": run.updated_count,
+            "classification_warning_count": run.classification_warning_count,
+            "error_message": run.error_message,
+            "last_success_at": (
+                run.last_success_at.isoformat() if run.last_success_at else None
+            ),
+        }
     )
 
 

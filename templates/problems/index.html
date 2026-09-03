@@ -19,6 +19,33 @@
         </p>
       </header>
 
+      <section class="catalog-sync" aria-labelledby="sync-heading" data-testid="catalog-sync-status" data-sync-state="{% if latest_sync %}{{ latest_sync.status }}{% else %}never-run{% endif %}">
+        <div>
+          <p class="eyebrow">PUBLIC CATALOG</p>
+          <h2 id="sync-heading">LeetCode catalog</h2>
+          {% if latest_sync and latest_sync.status == 'running' %}
+            <p class="sync-copy">Syncing {{ latest_sync.progress_label }}. This shelf stays available while new records are read.</p>
+          {% elif latest_sync and latest_sync.status == 'succeeded' %}
+            <p class="sync-copy">Last synced {{ latest_sync.finished_at|date:"M j, Y · H:i" }} · {{ latest_sync.processed_items }} records read.</p>
+          {% elif latest_sync and latest_sync.status == 'failed' %}
+            <p class="sync-copy sync-copy--error">The last sync failed: {{ latest_sync.error_message }}</p>
+            {% if last_successful_sync %}
+              <p class="sync-safe-note">Your last successful catalog is still available.</p>
+            {% else %}
+              <p class="sync-safe-note">No catalog was removed. Try again when the public source is reachable.</p>
+            {% endif %}
+          {% else %}
+            <p class="sync-copy">Bring the public unauthenticated LeetCode catalog into this local shelf.</p>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'problems:sync' %}">
+          {% csrf_token %}
+          <button class="primary-button" type="submit"{% if latest_sync and latest_sync.status == 'running' %} disabled{% endif %}>
+            {% if latest_sync and latest_sync.status == 'running' %}Syncing…{% else %}Sync public catalog{% endif %}
+          </button>
+        </form>
+      </section>
+
       <section class="library-toolbar" aria-labelledby="filter-heading">
         <div class="section-heading">
           <p class="eyebrow">PRACTICE CATALOG</p>
@@ -105,6 +132,7 @@
                     {% else %}
                       <span class="metadata-warning">Source not set</span>
                     {% endif %}
+                    {% if problem.is_paid_only %}<span class="metadata-warning">Paid-only</span>{% endif %}
                   </div>
                   <span class="problem-number">{{ forloop.counter|stringformat:"02d" }}</span>
                 </div>
