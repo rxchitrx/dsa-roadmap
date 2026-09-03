@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "planner",
     "progress",
     "problems",
+    "practice",
 ]
 
 MIDDLEWARE = [

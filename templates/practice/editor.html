@@ -1,0 +1,82 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ problem.title }} · Practice · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'practice/editor.css' %}">
+    <script src="{% static 'practice/editor.js' %}" defer></script>
+  </head>
+  <body>
+    <main class="practice-shell" data-testid="practice-editor">
+      <header class="practice-header">
+        <div>
+          <a class="back-link" href="{% url 'problems:detail' problem.slug %}">← Problem details</a>
+          <p class="eyebrow">DSA ROADMAP / PYTHON PRACTICE</p>
+          <h1>{{ problem.title }}</h1>
+          <p class="problem-context">
+            {% if problem.concept %}{{ problem.concept.topic.name }} · {{ problem.concept.name }}{% endif %}
+            {% if problem.difficulty %}<span class="problem-badge"> · {{ problem.get_difficulty_display }}</span>{% endif %}
+          </p>
+        </div>
+      </header>
+
+      <div class="editor-layout">
+        <section class="workspace" aria-labelledby="editor-heading">
+          <div class="workspace-header">
+            <div class="workspace-heading">
+              <div>
+                <h2 id="editor-heading">Your working draft</h2>
+                <p>Write, refresh, and return later. Your draft stays on this machine.</p>
+              </div>
+              <span class="draft-status" data-draft-status data-state="saved" aria-live="polite">Draft ready</span>
+            </div>
+          </div>
+
+          <form class="editor-form" method="post" data-draft-form>
+            {% csrf_token %}
+            <textarea
+              class="code-editor"
+              data-testid="draft-editor"
+              data-draft-editor
+              data-save-url="{% url 'practice:save_draft' problem.slug %}"
+              data-revision="{{ draft.revision }}"
+              data-debounce-ms="600"
+              aria-label="Python solution draft"
+              spellcheck="false"
+            >{{ draft.code }}</textarea>
+            <div class="editor-footer">
+              <p class="save-hint">Autosaves after a short pause</p>
+              <span class="revision-label" data-draft-revision>Revision {{ draft.revision }}</span>
+            </div>
+          </form>
+        </section>
+
+        <aside class="context-panel" aria-label="Problem context">
+          <section>
+            <p class="section-label">Starter signature</p>
+            <pre class="signature" data-testid="starter-signature"><code>{{ draft.starter_signature }}</code></pre>
+          </section>
+          <section>
+            <p class="section-label">Statement</p>
+            <p class="statement">{{ problem.statement }}</p>
+          </section>
+          {% if problem.examples %}
+            <section>
+              <p class="section-label">Examples</p>
+              {% for example in problem.examples %}
+                <div class="example">
+                  <span class="example-label">Example {{ forloop.counter }}</span>
+                  {% if example.input %}<code>{{ example.input }}</code>{% endif %}
+                  {% if example.output %}<code>→ {{ example.output }}</code>{% endif %}
+                  {% if example.walkthrough %}<p class="example-note">{{ example.walkthrough }}</p>{% endif %}
+                </div>
+              {% endfor %}
+            </section>
+          {% endif %}
+        </aside>
+      </div>
+    </main>
+  </body>
+</html>
