@@ -110,11 +110,50 @@
 
           {% if problem.tags %}
             <section class="detail-section" aria-labelledby="tags-heading">
-              <p class="section-index">04</p>
+              <p class="section-index">05</p>
               <h2 id="tags-heading">Tags</h2>
               <p class="tag-list tag-list--detail">{% for tag in problem.tags %}#{{ tag }}{% if not forloop.last %} {% endif %}{% endfor %}</p>
             </section>
           {% endif %}
+
+          <section class="detail-section classification-section" aria-labelledby="classification-heading" data-testid="problem-classifications">
+            <p class="section-index">04</p>
+            <h2 id="classification-heading">Concept classification</h2>
+            {% if problem.has_classification_warning %}
+              <div class="classification-warning" data-testid="classification-warning">
+                One or more Concept tags need review before they are treated as reliable.
+              </div>
+            {% endif %}
+
+            <div class="classification-list">
+              {% for classification in classifications %}
+                <div class="classification-row" data-testid="classification-row">
+                  <div>
+                    <p class="classification-name">{{ classification.concept.name }}</p>
+                    <span class="classification-status classification-status--{{ classification.status }}">
+                      {{ classification.get_status_display }}
+                    </span>
+                    {% if classification.is_warning %}
+                      <p class="classification-note">{{ classification.note }}</p>
+                    {% endif %}
+                  </div>
+                  <form method="post" action="{% url 'problems:classification_remove' problem.slug classification.pk %}">
+                    {% csrf_token %}
+                    <button class="secondary-button compact-button" type="submit">Remove</button>
+                  </form>
+                </div>
+              {% empty %}
+                <p class="classification-empty">No Concept tags have been added yet.</p>
+              {% endfor %}
+            </div>
+
+            <form class="classification-form" method="post" action="{% url 'problems:classification_add' problem.slug %}">
+              {% csrf_token %}
+              {{ classification_form.non_field_errors }}
+              {{ classification_form.as_p }}
+              <button class="primary-button" type="submit">Add Concept tag</button>
+            </form>
+          </section>
         </article>
 
         <aside class="detail-sidebar" aria-label="Problem metadata">

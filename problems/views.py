@@ -1,11 +1,14 @@
 from urllib.parse import urlsplit
 
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from curriculum.models import Concept, Topic
 
-from .models import Problem
+from .forms import ProblemClassificationForm
+from .models import Problem, ProblemClassification
+from .services import add_classification, remove_classification
 
 
 def _safe_external_url(value: str) -> str:
@@ -109,25 +112,66 @@ def problem_detail(request, slug):
         slug=slug,
         is_active=True,
     )
-    concept = problem.concept
-    constraints = getattr(problem, "constraints", "")
-    complexity = getattr(problem, "expected_complexity", "") or getattr(
-        problem, "complexity", ""
+    return render(
+        request,
+        "problems/detail.html",
+        _problem_detail_context(problem),
     )
 
-    # The current catalog stores complexity on the linked concept. Keep the
-    # page honest by using it only when the problem has no problem-specific
-    # value, and expose a stable context key for future catalog imports.
-    if not complexity and concept:
-        complexity = concept.complexity_notes
+
+@require_POST
+def add_problem_classification(request, slug):
+    problem = get_object_or_404(
+        Problem.objects.select_related("concept", "concept__topic"),
+        slug=slug,
+        is_active=True,
+    )
+    form = ProblemClassificationForm(request.POST, problem=problem)
+    if form.is_valid():
+        add_classification(
+            problem,
+            form.cleaned_data["concept"],
+            status=form.cleaned_data["status"],
+            note=form.cleaned_data["note"],
+        )
+        return redirect("problems:detail", slug=problem.slug)
 
     return render(
         request,
         "problems/detail.html",
-        {
-            "problem": problem,
-            "constraints": constraints,
-            "complexity": complexity,
-            "safe_source_url": _safe_external_url(problem.source_url),
-        },
+        _problem_detail_context(problem, classification_form=form),
+        status=400,
     )
+
+
+@require_POST
+def remove_problem_classification(request, slug, classification_id):
+    problem = get_object_or_404(Problem, slug=slug, is_active=True)
+    classification = get_object_or_404(
+        ProblemClassification,
+        pk=classification_id,
+        problem=problem,
+    )
+    remove_classification(problem, classification)
+    return redirect("problems:detail", slug=problem.slug)
+
+
+def _problem_detail_context(problem, *, classification_form=None):
+    constraints = getattr(problem, "constraints", "")
+    complexity = getattr(problem, "expected_complexity", "") or getattr(
+        problem, "complexity", ""
+    )
+    if not complexity and problem.concept:
+        complexity = problem.concept.complexity_notes
+
+    return {
+        "problem": problem,
+        "constraints": constraints,
+        "complexity": complexity,
+        "safe_source_url": _safe_external_url(problem.source_url),
+        "classifications": problem.classifications.select_related(
+            "concept", "concept__topic"
+        ),
+        "classification_form": classification_form
+        or ProblemClassificationForm(problem=problem),
+    }
