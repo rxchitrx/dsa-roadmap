@@ -15,6 +15,13 @@ class StudyBlock(models.Model):
     planned_minutes = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     week_start = models.DateField(blank=True, db_index=True, null=True)
     routine_key = models.CharField(blank=True, max_length=80, null=True)
+    carried_from = models.ForeignKey(
+        "self",
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+        related_name="carry_forward_blocks",
+    )
     position = models.PositiveSmallIntegerField(default=0)
     status = models.CharField(
         max_length=20,
@@ -37,6 +44,23 @@ class StudyBlock(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title} ({self.date:%Y-%m-%d})"
+
+    @property
+    def is_carried_forward(self) -> bool:
+        return self.carried_from_id is not None
+
+
+class RestDay(models.Model):
+    """A date intentionally set aside without changing its planned blocks."""
+
+    date = models.DateField(unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("date", "id")
+
+    def __str__(self) -> str:
+        return f"Rest day ({self.date:%Y-%m-%d})"
 
 
 class WorkSession(models.Model):

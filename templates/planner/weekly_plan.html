@@ -46,11 +46,26 @@
         {% for day in days %}
           <section class="day-card" data-testid="plan-day">
             <header class="day-header">
-              <h2>{{ day.label }}</h2>
-              <time datetime="{{ day.date|date:'Y-m-d' }}">{{ day.date|date:'M j' }}</time>
+              <div>
+                <h2>{{ day.label }}</h2>
+                <time datetime="{{ day.date|date:'Y-m-d' }}">{{ day.date|date:'M j' }}</time>
+              </div>
+              <form method="post" action="{% url 'planner:toggle_rest_day' day.date|date:'Y-m-d' %}">
+                {% csrf_token %}
+                <button class="day-rest-button" type="submit" data-testid="toggle-rest-day">
+                  {% if day.is_rest_day %}Resume day{% else %}Rest day{% endif %}
+                </button>
+              </form>
             </header>
 
-            {% if day.items %}
+            {% if day.is_rest_day %}
+              <div class="day-rest-state" data-testid="weekly-rest-day">
+                <strong>Rest day</strong>
+                <span>
+                  {{ day.suppressed_block_count }} planned block{{ day.suppressed_block_count|pluralize }} saved, not deleted.
+                </span>
+              </div>
+            {% elif day.items %}
               <ol class="block-list">
                 {% for item in day.items %}
                   <li class="plan-item" data-testid="weekly-block">
@@ -86,6 +101,11 @@
                           >
                         </label>
                       </div>
+                      {% if item.block.is_carried_forward %}
+                        <p class="carry-forward-note" data-testid="carry-forward-label">
+                          Carried forward from {{ item.block.carried_from.date|date:'M j, Y' }}
+                        </p>
+                      {% endif %}
                       {% if item.form.errors %}
                         <div class="form-errors" role="alert" data-testid="edit-errors">
                           {% for error in item.form.title.errors %}<p>{{ error }}</p>{% endfor %}

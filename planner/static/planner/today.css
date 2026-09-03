@@ -117,6 +117,20 @@ h1 {
   gap: 10px;
 }
 
+.day-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: -4px 0 18px;
+}
+
+.rest-day-badge {
+  color: var(--green);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 .secondary-button {
   display: inline-block;
   border: 1px solid var(--border);
@@ -158,6 +172,10 @@ h1 {
   margin-bottom: 10px;
   color: var(--muted);
   letter-spacing: 0.1em;
+}
+
+.carry-forward-label {
+  color: var(--amber);
 }
 
 .study-block h3 {
@@ -204,6 +222,10 @@ h1 {
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.rest-day-state {
+  border-color: color-mix(in srgb, var(--green) 35%, var(--border));
 }
 
 @media (max-width: 640px) {

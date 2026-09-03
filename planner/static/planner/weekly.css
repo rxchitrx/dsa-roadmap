@@ -161,10 +161,31 @@ h1 {
   background: var(--surface-raised);
 }
 
+.day-header > div {
+  min-width: 0;
+}
+
 .day-header h2 {
   margin-bottom: 0;
   font-size: 1.25rem;
   letter-spacing: -0.025em;
+}
+
+.day-rest-button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 11px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.day-rest-button:hover,
+.day-rest-button:focus-visible {
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .block-list {
@@ -295,6 +316,25 @@ input:focus {
   padding: 22px 24px;
 }
 
+.day-rest-state {
+  display: grid;
+  gap: 6px;
+  padding: 24px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.day-rest-state strong {
+  color: var(--green);
+}
+
+.carry-forward-note {
+  margin: 12px 0 0;
+  color: var(--amber);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 @media (max-width: 700px) {
   .weekly-shell {
     width: min(100% - 32px, 1120px);
@@ -310,6 +350,10 @@ input:focus {
   .plan-item {
     gap: 10px;
     padding: 16px;
+  }
+
+  .day-header {
+    align-items: flex-start;
   }
 
   .field-grid {

@@ -15,6 +15,11 @@ urlpatterns = [
     ),
     path("routine/", views.weekly_plan, name="weekly_plan"),
     path(
+        "routine/days/<str:day_date>/rest/",
+        views.toggle_rest_day_view,
+        name="toggle_rest_day",
+    ),
+    path(
         "routine/blocks/<int:block_id>/edit/",
         views.edit_study_block,
         name="edit_study_block",

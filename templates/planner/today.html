@@ -48,12 +48,46 @@
           {% endif %}
         </div>
 
-        {% if study_blocks %}
+        <div class="day-actions">
+          {% if rest_day %}
+            <span class="rest-day-badge" data-testid="rest-day-status">Rest day</span>
+            <form method="post" action="{% url 'planner:toggle_rest_day' today|date:'Y-m-d' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="today">
+              <button class="secondary-button" type="submit" data-testid="resume-day">
+                Resume planned work
+              </button>
+            </form>
+          {% else %}
+            <form method="post" action="{% url 'planner:toggle_rest_day' today|date:'Y-m-d' %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="today">
+              <button class="secondary-button" type="submit" data-testid="mark-rest-day">
+                Take a rest day
+              </button>
+            </form>
+          {% endif %}
+        </div>
+
+        {% if rest_day %}
+          <div class="empty-state rest-day-state" data-testid="rest-day-empty">
+            <p class="empty-title">Today is a rest day.</p>
+            <p class="empty-copy">
+              Your planned work stays saved ({{ suppressed_block_count }} block{{ suppressed_block_count|pluralize }}) and can be resumed whenever you are ready.
+            </p>
+          </div>
+        {% elif study_blocks %}
           <div class="study-block-list">
             {% for block in study_blocks %}
               <article class="study-block" data-testid="study-block">
                 <div class="study-block-copy">
-                  <p class="block-label">DSA study block {{ forloop.counter }}</p>
+                  {% if block.is_carried_forward %}
+                    <p class="block-label carry-forward-label" data-testid="carry-forward-label">
+                      Carried forward from {{ block.carried_from.date|date:'M j' }}
+                    </p>
+                  {% else %}
+                    <p class="block-label">DSA study block {{ forloop.counter }}</p>
+                  {% endif %}
                   <h3 data-testid="study-block-title">{{ block.title }}</h3>
                 </div>
                 <div class="study-block-meta">

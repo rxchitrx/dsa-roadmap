@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -6,18 +6,21 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import StopWorkSessionForm, StudyBlockEditForm
-from .models import StudyBlock, WorkSession
+from .models import RestDay, StudyBlock, WorkSession
 from .services import (
     ActiveWorkSessionError,
+    carry_forward_unfinished_blocks,
     InvalidWorkSessionStateError,
     generate_weekly_routine,
     format_elapsed_seconds,
     is_weekly_routine_complete,
+    is_rest_day,
     move_study_block,
     pause_work_session,
     resume_work_session,
     start_work_session,
     stop_work_session,
+    toggle_rest_day,
     WorkSessionTransitionError,
     week_start_for,
 )
@@ -55,8 +58,13 @@ def _decorate_with_timer_sessions(study_blocks):
 
 def _today_context(today_date=None, timer_error=None):
     today_date = today_date or timezone.localdate()
+    carry_forward_unfinished_blocks(today_date)
+    rest_day = is_rest_day(today_date)
+    all_study_blocks = StudyBlock.objects.filter(date=today_date).order_by(
+        "position", "id"
+    )
     study_blocks = _decorate_with_timer_sessions(
-        StudyBlock.objects.filter(date=today_date).order_by("position", "id")
+        [] if rest_day else all_study_blocks
     )
     study_block = (
         study_blocks[0] if study_blocks else None
@@ -65,6 +73,8 @@ def _today_context(today_date=None, timer_error=None):
         "today": today_date,
         "study_block": study_block,
         "study_blocks": study_blocks,
+        "rest_day": rest_day,
+        "suppressed_block_count": all_study_blocks.count() if rest_day else 0,
         "routine_generated": is_weekly_routine_complete(today_date),
         "timer_error": timer_error,
     }
@@ -91,22 +101,32 @@ def _weekly_plan_context(week_start, forms_by_block=None):
     for block in blocks:
         blocks_by_date.setdefault(block.date, []).append(block)
 
+    rest_dates = set(
+        RestDay.objects.filter(
+            date__range=(week_start, week_start + timedelta(days=6))
+        ).values_list("date", flat=True)
+    )
+
     days = []
     for day_offset in range(7):
         day_date = week_start + timedelta(days=day_offset)
+        day_blocks = blocks_by_date.get(day_date, [])
+        day_is_rest = day_date in rest_dates
         day_items = [
             {
                 "block": block,
                 "form": forms_by_block.get(block.pk)
                 or StudyBlockEditForm(instance=block),
             }
-            for block in blocks_by_date.get(day_date, [])
+            for block in ([] if day_is_rest else day_blocks)
         ]
         days.append(
             {
                 "date": day_date,
                 "label": day_date.strftime("%A"),
                 "items": day_items,
+                "is_rest_day": day_is_rest,
+                "suppressed_block_count": len(day_blocks) if day_is_rest else 0,
             }
         )
 
@@ -120,11 +140,31 @@ def _weekly_plan_context(week_start, forms_by_block=None):
 
 def weekly_plan(request):
     week_start = week_start_for(timezone.localdate())
+    carry_forward_unfinished_blocks(week_start)
     return render(
         request,
         "planner/weekly_plan.html",
         _weekly_plan_context(week_start),
     )
+
+
+def _parse_day_date(value):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+@require_POST
+def toggle_rest_day_view(request, day_date):
+    parsed_date = _parse_day_date(day_date)
+    if parsed_date is None:
+        return HttpResponseBadRequest("Use a valid date in YYYY-MM-DD format.")
+
+    toggle_rest_day(parsed_date)
+    if request.POST.get("next") == "today":
+        return redirect("planner:today")
+    return redirect("planner:weekly_plan")
 
 
 @require_POST

@@ -1,9 +1,10 @@
 from datetime import date, timedelta
 
 from django.db import IntegrityError, transaction
+from django.db.models import Max
 from django.utils import timezone
 
-from .models import StudyBlock, WorkSession
+from .models import RestDay, StudyBlock, WorkSession
 
 
 class WorkSessionTransitionError(Exception):
@@ -61,6 +62,115 @@ DEFAULT_WEEKLY_ROUTINE_BLOCK_COUNT = sum(
 )
 
 
+def is_rest_day(value: date) -> bool:
+    return RestDay.objects.filter(date=value).exists()
+
+
+@transaction.atomic
+def toggle_rest_day(value: date) -> bool:
+    """Toggle a rest day while leaving every StudyBlock untouched."""
+
+    rest_day, created = RestDay.objects.get_or_create(date=value)
+    if not created:
+        rest_day.delete()
+    return created
+
+
+def _carry_forward_position(week_start: date) -> int:
+    last_position = (
+        StudyBlock.objects.filter(
+            week_start=week_start,
+            carried_from__isnull=True,
+        ).aggregate(last_position=Max("position"))["last_position"]
+    )
+    return (last_position + 1) if last_position is not None else 0
+
+
+def _normalize_carry_forward_positions(week_start: date) -> None:
+    """Keep copied work after the editable routine when a week is generated."""
+
+    next_position = _carry_forward_position(week_start)
+    carry_forward_blocks = StudyBlock.objects.filter(
+        week_start=week_start,
+        carried_from__isnull=False,
+    ).order_by("created_at", "id")
+    for block in carry_forward_blocks:
+        if block.position != next_position:
+            block.position = next_position
+            block.save(update_fields=("position", "updated_at"))
+        next_position += 1
+
+
+@transaction.atomic
+def carry_forward_unfinished_blocks(
+    target_week_start: date | None = None,
+) -> list[StudyBlock]:
+    """Copy unfinished work from the prior week into the target week.
+
+    Copies are new StudyBlocks linked to their source. The source row and all
+    of its WorkSession history remain unchanged. The operation is idempotent
+    through the generated routine key, so refreshing a planning view cannot
+    create duplicate carry-forward work.
+    """
+
+    target_start = week_start_for(target_week_start or timezone.localdate())
+    target_date = target_start
+    if is_rest_day(target_date):
+        return []
+
+    source_start = target_start - timedelta(days=7)
+    source_end = target_start - timedelta(days=1)
+    source_rest_dates = set(
+        RestDay.objects.filter(date__range=(source_start, source_end)).values_list(
+            "date", flat=True
+        )
+    )
+    source_blocks = list(
+        StudyBlock.objects.select_for_update()
+        .filter(
+            date__range=(source_start, source_end),
+            status=StudyBlock.Status.PENDING,
+        )
+        .order_by("date", "position", "id")
+    )
+    source_blocks = [
+        block for block in source_blocks if block.date not in source_rest_dates
+    ]
+    if not source_blocks:
+        return []
+
+    source_ids = [block.pk for block in source_blocks]
+    existing_source_ids = set(
+        StudyBlock.objects.filter(
+            week_start=target_start,
+            carried_from_id__in=source_ids,
+        ).values_list("carried_from_id", flat=True)
+    )
+
+    next_position = _carry_forward_position(target_start)
+    carried_blocks = []
+    for source in source_blocks:
+        if source.pk in existing_source_ids:
+            continue
+
+        carried_block, _ = StudyBlock.objects.get_or_create(
+            week_start=target_start,
+            routine_key=f"carry-forward-{source.pk}",
+            defaults={
+                "date": target_date,
+                "title": source.title,
+                "planned_minutes": source.planned_minutes,
+                "position": next_position,
+                "status": StudyBlock.Status.PENDING,
+                "carried_from": source,
+            },
+        )
+        carried_blocks.append(carried_block)
+        next_position += 1
+
+    return carried_blocks
+
+
 @transaction.atomic
 def generate_weekly_routine(start_date: date | None = None) -> list[StudyBlock]:
     """Create the default routine for a week without duplicating its blocks."""
@@ -83,6 +193,8 @@ def generate_weekly_routine(start_date: date | None = None) -> list[StudyBlock]:
             )
             generated_blocks.append(block)
 
+    carry_forward_unfinished_blocks(week_start)
+    _normalize_carry_forward_positions(week_start)
     return generated_blocks
 
 
@@ -92,7 +204,7 @@ def is_weekly_routine_complete(value: date) -> bool:
     week_start = week_start_for(value)
     return (
         StudyBlock.objects.filter(week_start=week_start).count()
-        == DEFAULT_WEEKLY_ROUTINE_BLOCK_COUNT
+        >= DEFAULT_WEEKLY_ROUTINE_BLOCK_COUNT
     )
 
 
