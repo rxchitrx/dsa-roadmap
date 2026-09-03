@@ -1,0 +1,53 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Today · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'planner/today.css' %}">
+  </head>
+  <body>
+    <main class="today-shell">
+      <header class="today-header">
+        <p class="eyebrow">DSA ROADMAP / TODAY</p>
+        <h1>Today</h1>
+        <time datetime="{{ today|date:'Y-m-d' }}">{{ today|date:'l, F j, Y' }}</time>
+      </header>
+
+      <section class="plan-section" aria-labelledby="plan-heading">
+        <div class="section-heading">
+          <p class="eyebrow">YOUR NEXT STEP</p>
+          <h2 id="plan-heading">Study plan</h2>
+        </div>
+
+        {% if study_block %}
+          <article class="study-block" data-testid="study-block">
+            <div class="study-block-copy">
+              <p class="block-label">DSA study block</p>
+              <h3 data-testid="study-block-title">{{ study_block.title }}</h3>
+            </div>
+            <div class="study-block-meta">
+              <span class="duration" data-testid="study-block-duration">
+                {{ study_block.planned_minutes }} min planned
+              </span>
+              <span
+                class="status status--{{ study_block.status }}"
+                data-testid="study-block-status"
+              >
+                {{ study_block.get_status_display }}
+              </span>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state" data-testid="today-empty">
+            <p class="empty-title">Nothing planned for today.</p>
+            <p class="empty-copy">
+              A DSA study block for this date will appear here when one is added.
+            </p>
+          </div>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
