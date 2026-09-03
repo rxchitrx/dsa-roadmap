@@ -172,6 +172,19 @@
           {% endif %}
         </section>
       {% endif %}
+
+      {% if is_sunday %}
+        <section class="review-queue-panel" aria-labelledby="sunday-review-heading" data-testid="sunday-review-entrypoint">
+          <div class="review-queue-heading">
+            <div>
+              <p class="eyebrow">SUNDAY RESET</p>
+              <h2 id="sunday-review-heading">Five-question revisit</h2>
+              <p class="review-queue-copy">Close the week by re-solving older Problems. You can change the batch size before you begin.</p>
+            </div>
+            <a class="secondary-button" href="{% url 'reviews:sunday_batch' %}">Open Sunday batch</a>
+          </div>
+        </section>
+      {% endif %}
     </main>
   </body>
 </html>

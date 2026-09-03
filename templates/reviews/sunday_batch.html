@@ -1,0 +1,93 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sunday review batch · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'reviews/reviews.css' %}">
+  </head>
+  <body>
+    <main class="review-queue-shell" data-testid="sunday-review-batch">
+      <header class="review-header">
+        <a class="back-link" href="{% url 'planner:today' %}">← Back to Today</a>
+        <p class="eyebrow">DSA ROADMAP / SUNDAY RESET</p>
+        <h1>Re-solve the week behind you.</h1>
+        <p class="lede">Work through a small batch of older Problems, then rate recall honestly. Each rating schedules the next revisit through the same retention loop used on weekdays.</p>
+      </header>
+
+      {% if review_saved %}
+        <p class="notice" role="status" data-testid="sunday-review-saved">Review saved. The remaining batch is ready.</p>
+      {% endif %}
+
+      <section class="review-queue-panel sunday-batch-settings" aria-labelledby="sunday-settings-heading">
+        <div class="review-queue-heading">
+          <div>
+            <p class="eyebrow">BATCH SIZE</p>
+            <h2 id="sunday-settings-heading">How many Problems today?</h2>
+          </div>
+          <time class="queue-checked-at" datetime="{{ batch_checked_at|date:'c' }}">Checked {{ batch_checked_at|date:'M j, Y · g:i A' }}</time>
+        </div>
+        <form method="get" class="batch-count-form" data-testid="sunday-count-form">
+          <div>
+            {{ count_form.count.label_tag }}
+            {{ count_form.count }}
+            <p class="field-help">{{ count_form.count.help_text }}</p>
+            {% for error in count_form.count.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+          </div>
+          <button class="secondary-button" type="submit">Update batch</button>
+        </form>
+      </section>
+
+      {% if batch_reviews %}
+        <section class="review-queue-panel" aria-labelledby="sunday-batch-heading">
+          <div class="review-queue-heading">
+            <div>
+              <p class="eyebrow">YOUR SUNDAY BATCH</p>
+              <h2 id="sunday-batch-heading">{{ batch_reviews|length }} of {{ batch_count }} revisit{{ batch_reviews|length|pluralize }}</h2>
+              <p class="review-queue-copy">Oldest due first. Finish one card and the next refresh shows what remains.</p>
+            </div>
+          </div>
+
+          <ol class="sunday-batch-list">
+            {% for review in batch_reviews %}
+              <li class="sunday-batch-card" data-testid="sunday-review-item">
+                <div class="sunday-batch-card-header">
+                  <span class="problem-number">{{ forloop.counter|stringformat:"02d" }}</span>
+                  <div>
+                    <span class="review-queue-state{% if review.is_overdue %} review-queue-state--overdue{% endif %}">{{ review.queue_due_label }}</span>
+                    <h3><a href="{% url 'reviews:problem_review' slug=review.problem.slug %}">{{ review.problem.title }}</a></h3>
+                    <p class="review-queue-status">{{ review.problem.get_difficulty_display }} · Due {{ review.due_at|date:"M j, Y" }}</p>
+                  </div>
+                </div>
+
+                <form method="post" class="rating-form sunday-rating-form" data-testid="sunday-review-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="problem" value="{{ review.problem.slug }}">
+                  <input type="hidden" name="count" value="{{ batch_count }}">
+                  <div class="rating-actions" role="group" aria-label="Review rating for {{ review.problem.title }}">
+                    {% for value, label in review_form.fields.rating.choices %}
+                      <button class="rating-button rating-button--{{ value }}" type="submit" name="rating" value="{{ value }}" data-testid="sunday-rating-{{ value }}">
+                        <strong>{{ label }}</strong>
+                        {% if value == 'could_not_solve' %}<span>Bring it back tomorrow</span>{% elif value == 'solved_with_help' %}<span>Return in a few days</span>{% else %}<span>Spread it further out</span>{% endif %}
+                      </button>
+                    {% endfor %}
+                  </div>
+                  <label class="visually-hidden" for="sunday-note-{{ review.pk }}">Optional recall note for {{ review.problem.title }}</label>
+                  <textarea id="sunday-note-{{ review.pk }}" name="note" rows="2" placeholder="Optional recall note"></textarea>
+                </form>
+              </li>
+            {% endfor %}
+          </ol>
+        </section>
+      {% else %}
+        <section class="review-queue-panel review-queue-panel--empty" aria-labelledby="sunday-empty-heading" data-testid="sunday-review-empty">
+          <p class="eyebrow">BATCH CLEAR</p>
+          <h2 id="sunday-empty-heading">No due Problems in this batch.</h2>
+          <p class="review-queue-copy">You have completed every due revisit available right now. Keep solving and the next scheduled review will appear here.</p>
+          <a class="secondary-button" href="{% url 'planner:today' %}">Return to Today</a>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>

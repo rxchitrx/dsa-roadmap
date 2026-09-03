@@ -3,6 +3,16 @@ from django import forms
 from .models import ReviewRating
 
 
+class SundayReviewBatchForm(forms.Form):
+    count = forms.IntegerField(
+        min_value=1,
+        initial=5,
+        label="Problems in this Sunday batch",
+        help_text="Choose how many due Problems to revisit today.",
+        widget=forms.NumberInput(attrs={"min": 1, "inputmode": "numeric"}),
+    )
+
+
 class ReviewRatingForm(forms.Form):
     rating = forms.ChoiceField(choices=ReviewRating.choices)
     note = forms.CharField(

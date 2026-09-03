@@ -79,6 +79,7 @@ def _today_context(today_date=None, timer_error=None):
         study_blocks[0] if study_blocks else None
     )
     is_weekday = today_date.weekday() < 5
+    is_sunday = today_date.weekday() == 6
     return {
         "today": today_date,
         "study_block": study_block,
@@ -88,6 +89,7 @@ def _today_context(today_date=None, timer_error=None):
         "routine_generated": is_weekly_routine_complete(today_date),
         "timer_error": timer_error,
         "is_weekday": is_weekday,
+        "is_sunday": is_sunday,
         "due_reviews": due_review_queue() if is_weekday else [],
     }
 

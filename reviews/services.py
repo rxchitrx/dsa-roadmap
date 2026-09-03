@@ -15,6 +15,8 @@ from problems.models import Problem
 from .models import ProblemReview, ProblemReviewEvent, ReviewRating
 
 
+SUNDAY_REVIEW_DEFAULT_COUNT = 5
+
 FIRST_INTERVALS = {
     ReviewRating.COULD_NOT_SOLVE: 1,
     ReviewRating.SOLVED_WITH_HELP: 3,
@@ -196,3 +198,13 @@ def due_review_queue(*, now: datetime | None = None):
         .select_related("problem", "problem__learning_status")
         .order_by("due_at", "problem__title", "problem_id")
     )
+
+
+def sunday_review_batch(
+    *, count: int = SUNDAY_REVIEW_DEFAULT_COUNT, now: datetime | None = None
+):
+    """Return up to ``count`` due reviews for the Sunday revisit batch."""
+
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        raise ValidationError("Sunday review batch count must be at least one.")
+    return due_review_queue(now=now)[:count]

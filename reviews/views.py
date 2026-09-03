@@ -5,9 +5,14 @@ from django.views.decorators.http import require_http_methods
 
 from problems.models import Problem
 
-from .forms import ReviewRatingForm
+from .forms import ReviewRatingForm, SundayReviewBatchForm
 from .models import ProblemReview
-from .services import due_review_queue, record_review
+from .services import (
+    SUNDAY_REVIEW_DEFAULT_COUNT,
+    due_review_queue,
+    record_review,
+    sunday_review_batch,
+)
 
 
 def due_queue(request):
@@ -20,6 +25,53 @@ def due_queue(request):
         {
             "due_reviews": due_reviews,
             "queue_checked_at": timezone.now(),
+        },
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def sunday_batch(request):
+    """Run a configurable Sunday review batch through the shared rating flow."""
+
+    raw_count = (
+        request.POST.get("count")
+        if request.method == "POST"
+        else request.GET.get("count")
+    )
+    count_form = SundayReviewBatchForm(
+        {"count": raw_count} if raw_count is not None else None
+    )
+    count = SUNDAY_REVIEW_DEFAULT_COUNT
+    if count_form.is_valid():
+        count = count_form.cleaned_data["count"]
+
+    review_form = ReviewRatingForm(
+        request.POST if request.method == "POST" else None
+    )
+    if request.method == "POST" and count_form.is_valid() and review_form.is_valid():
+        problem = get_object_or_404(
+            Problem,
+            slug=request.POST.get("problem"),
+            is_active=True,
+        )
+        record_review(
+            problem,
+            rating=review_form.cleaned_data["rating"],
+            note=review_form.cleaned_data["note"],
+        )
+        batch_url = reverse("reviews:sunday_batch")
+        return redirect(f"{batch_url}?count={count}&saved=1")
+
+    return render(
+        request,
+        "reviews/sunday_batch.html",
+        {
+            "batch_reviews": sunday_review_batch(count=count),
+            "batch_count": count,
+            "count_form": count_form,
+            "review_form": review_form,
+            "review_saved": request.GET.get("saved") == "1",
+            "batch_checked_at": timezone.now(),
         },
     )
 
