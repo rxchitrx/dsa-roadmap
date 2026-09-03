@@ -16,34 +16,50 @@
       </header>
 
       <section class="plan-section" aria-labelledby="plan-heading">
-        <div class="section-heading">
-          <p class="eyebrow">YOUR NEXT STEP</p>
-          <h2 id="plan-heading">Study plan</h2>
+        <div class="section-heading-row">
+          <div class="section-heading">
+            <p class="eyebrow">YOUR NEXT STEP</p>
+            <h2 id="plan-heading">Study plan</h2>
+          </div>
+          {% if not routine_generated %}
+            <form method="post" action="{% url 'planner:generate_weekly_routine' %}">
+              {% csrf_token %}
+              <button class="primary-button" type="submit" data-testid="generate-routine">
+                Generate this week
+              </button>
+            </form>
+          {% else %}
+            <span class="routine-ready" data-testid="routine-ready">This week is ready</span>
+          {% endif %}
         </div>
 
-        {% if study_block %}
-          <article class="study-block" data-testid="study-block">
-            <div class="study-block-copy">
-              <p class="block-label">DSA study block</p>
-              <h3 data-testid="study-block-title">{{ study_block.title }}</h3>
-            </div>
-            <div class="study-block-meta">
-              <span class="duration" data-testid="study-block-duration">
-                {{ study_block.planned_minutes }} min planned
-              </span>
-              <span
-                class="status status--{{ study_block.status }}"
-                data-testid="study-block-status"
-              >
-                {{ study_block.get_status_display }}
-              </span>
-            </div>
-          </article>
+        {% if study_blocks %}
+          <div class="study-block-list">
+            {% for block in study_blocks %}
+              <article class="study-block" data-testid="study-block">
+                <div class="study-block-copy">
+                  <p class="block-label">DSA study block {{ forloop.counter }}</p>
+                  <h3 data-testid="study-block-title">{{ block.title }}</h3>
+                </div>
+                <div class="study-block-meta">
+                  <span class="duration" data-testid="study-block-duration">
+                    {{ block.planned_minutes }} min planned
+                  </span>
+                  <span
+                    class="status status--{{ block.status }}"
+                    data-testid="study-block-status"
+                  >
+                    {{ block.get_status_display }}
+                  </span>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
         {% else %}
           <div class="empty-state" data-testid="today-empty">
             <p class="empty-title">Nothing planned for today.</p>
             <p class="empty-copy">
-              A DSA study block for this date will appear here when one is added.
+              Generate the default Monday–Sunday routine to make this week actionable.
             </p>
           </div>
         {% endif %}

@@ -70,10 +70,46 @@ h1 {
   margin-bottom: 18px;
 }
 
+.section-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
 .section-heading h2 {
   margin: 7px 0 0;
   font-size: 1.5rem;
   letter-spacing: -0.025em;
+}
+
+.primary-button {
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  padding: 10px 15px;
+  background: var(--amber);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.primary-button:hover,
+.primary-button:focus-visible {
+  background: #f1bd68;
+}
+
+.routine-ready {
+  color: var(--green);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.study-block-list {
+  display: grid;
+  gap: 10px;
 }
 
 .study-block,
@@ -153,6 +189,11 @@ h1 {
     align-items: flex-start;
     flex-direction: column;
     padding: 22px;
+  }
+
+  .section-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .study-block-meta {
