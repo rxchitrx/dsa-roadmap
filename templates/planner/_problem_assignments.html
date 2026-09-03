@@ -1,0 +1,27 @@
+{% if block.is_problem_solve_block %}
+  <section class="assigned-problems" data-testid="assigned-problems" aria-label="Assigned Problems">
+    <div class="assigned-problems-heading">
+      <span class="assigned-concept-label">Problems for this block</span>
+      <span class="problem-count">{{ block.problem_assignments.all|length }}/2</span>
+    </div>
+    {% if block.problem_assignments.all %}
+      <ol class="problem-assignment-list">
+        {% for assignment in block.problem_assignments.all %}
+          <li data-testid="assigned-problem">
+            <a href="{% url 'problems:detail' slug=assignment.problem.slug %}">
+              {{ assignment.problem.title }}
+            </a>
+            <span class="problem-meta">
+              {% if assignment.problem.difficulty %}{{ assignment.problem.get_difficulty_display }} · {% endif %}
+              {{ assignment.get_assignment_source_display }}
+            </span>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="problem-pool-empty" data-testid="problem-pool-empty">
+        No eligible Problems are available yet. Sync or classify more Problems to fill this block.
+      </p>
+    {% endif %}
+  </section>
+{% endif %}

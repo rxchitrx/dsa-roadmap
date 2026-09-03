@@ -72,6 +72,59 @@ class StudyBlock(models.Model):
 
         return bool(self.routine_key and self.routine_key.endswith("-concept"))
 
+    @property
+    def is_problem_solve_block(self) -> bool:
+        """Whether this row is a weekday block for solving Problems."""
+
+        return bool(self.routine_key and self.routine_key.endswith("-problems"))
+
+
+class StudyBlockProblem(models.Model):
+    """One Problem assigned to a study block, in learner-facing order."""
+
+    class AssignmentSource(models.TextChoices):
+        AUTOMATIC = "automatic", "Auto-filled"
+        MANUAL = "manual", "Selected by you"
+
+    study_block = models.ForeignKey(
+        StudyBlock,
+        on_delete=models.CASCADE,
+        related_name="problem_assignments",
+    )
+    problem = models.ForeignKey(
+        "problems.Problem",
+        on_delete=models.CASCADE,
+        related_name="study_block_assignments",
+    )
+    position = models.PositiveSmallIntegerField(default=0)
+    assignment_source = models.CharField(
+        choices=AssignmentSource.choices,
+        default=AssignmentSource.AUTOMATIC,
+        max_length=20,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("position", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("study_block", "problem"),
+                name="planner_unique_block_problem",
+            ),
+            models.UniqueConstraint(
+                fields=("study_block", "position"),
+                name="planner_unique_block_problem_position",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("study_block", "position")),
+            models.Index(fields=("problem", "study_block")),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.study_block.title}: {self.problem.title}"
+
 
 class RestDay(models.Model):
     """A date intentionally set aside without changing its planned blocks."""

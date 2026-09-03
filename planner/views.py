@@ -9,6 +9,7 @@ from .forms import StopWorkSessionForm, StudyBlockEditForm
 from .models import RestDay, StudyBlock, WorkSession
 from .services import (
     ActiveWorkSessionError,
+    assign_weekday_problems,
     carry_forward_unfinished_blocks,
     InvalidWorkSessionStateError,
     assign_recommended_concept,
@@ -61,9 +62,11 @@ def _today_context(today_date=None, timer_error=None):
     today_date = today_date or timezone.localdate()
     carry_forward_unfinished_blocks(today_date)
     assign_recommended_concept(today_date)
+    assign_weekday_problems(today_date)
     rest_day = is_rest_day(today_date)
     all_study_blocks = (
         StudyBlock.objects.select_related("assigned_concept__topic")
+        .prefetch_related("problem_assignments__problem")
         .filter(date=today_date)
         .order_by("position", "id")
     )
@@ -99,6 +102,7 @@ def _weekly_plan_context(week_start, forms_by_block=None):
     blocks_by_date = {}
     blocks = _decorate_with_timer_sessions(
         StudyBlock.objects.select_related("assigned_concept__topic")
+        .prefetch_related("problem_assignments__problem")
         .filter(week_start=week_start)
         .order_by("date", "position", "id")
     )
@@ -146,6 +150,7 @@ def weekly_plan(request):
     week_start = week_start_for(timezone.localdate())
     carry_forward_unfinished_blocks(week_start)
     assign_recommended_concept(timezone.localdate())
+    assign_weekday_problems(week_start)
     return render(
         request,
         "planner/weekly_plan.html",

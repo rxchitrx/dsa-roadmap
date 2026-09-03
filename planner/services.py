@@ -1,12 +1,17 @@
 from datetime import date, timedelta
 
 from django.db import IntegrityError, transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 
+from curriculum.models import Concept
 from curriculum.services import recommend_next_concept
+from practice.models import LearningStatus, ProblemLearningStatus
+from problems.models import Problem, ProblemClassification
+from progress.models import ConceptCheckpoint
+from reviews.models import ProblemReview
 
-from .models import RestDay, StudyBlock, WorkSession
+from .models import RestDay, StudyBlock, StudyBlockProblem, WorkSession
 
 
 class WorkSessionTransitionError(Exception):
@@ -169,6 +174,17 @@ def carry_forward_unfinished_blocks(
                 "concept_assignment_source": source.concept_assignment_source,
             },
         )
+        for assignment in StudyBlockProblem.objects.filter(
+            study_block=source
+        ).order_by("position", "id"):
+            StudyBlockProblem.objects.get_or_create(
+                study_block=carried_block,
+                problem_id=assignment.problem_id,
+                defaults={
+                    "position": assignment.position,
+                    "assignment_source": assignment.assignment_source,
+                },
+            )
         carried_blocks.append(carried_block)
         next_position += 1
 
@@ -199,6 +215,7 @@ def generate_weekly_routine(start_date: date | None = None) -> list[StudyBlock]:
 
     carry_forward_unfinished_blocks(week_start)
     _normalize_carry_forward_positions(week_start)
+    assign_weekday_problems(week_start)
     return generated_blocks
 
 
@@ -262,6 +279,245 @@ def assign_recommended_concept(
         )
     )
     return candidate
+
+
+PROBLEMS_PER_WEEKDAY_BLOCK = 2
+_AUTO_ASSIGNABLE_STATUSES = frozenset(
+    {
+        LearningStatus.UNSEEN,
+        LearningStatus.ATTEMPTED,
+        LearningStatus.SOLVED_WITH_HELP,
+    }
+)
+_STATUS_PRIORITY = {
+    LearningStatus.ATTEMPTED: 0,
+    LearningStatus.SOLVED_WITH_HELP: 1,
+    LearningStatus.UNSEEN: 2,
+}
+
+
+def _ready_concepts_for_problem_assignment() -> list[Concept]:
+    """Return Concepts whose prerequisites have solid checkpoint evidence.
+
+    The current product has no separate review model yet, so Concept readiness
+    comes from the curriculum graph and Concept checkpoints. The Problem's
+    Learning Status is applied separately when building the candidate pool.
+    """
+
+    concepts = list(
+        Concept.objects.select_related("topic")
+        .prefetch_related("prerequisites")
+        .order_by("topic__display_order", "order", "id")
+    )
+    prerequisite_ids = {
+        prerequisite.pk
+        for concept in concepts
+        for prerequisite in concept.prerequisites.all()
+    }
+    checkpoints = ConceptCheckpoint.objects.filter(
+        concept_id__in={concept.pk for concept in concepts} | prerequisite_ids
+    ).order_by("concept_id", "-submitted_at", "-id")
+    latest_by_concept = {}
+    for checkpoint in checkpoints:
+        latest_by_concept.setdefault(checkpoint.concept_id, checkpoint)
+
+    return [
+        concept
+        for concept in concepts
+        if all(
+            (
+                checkpoint := latest_by_concept.get(prerequisite.pk)
+            ) is not None
+            and checkpoint.confidence >= ConceptCheckpoint.Confidence.SOLID
+            for prerequisite in concept.prerequisites.all()
+        )
+    ]
+
+
+def _problem_candidates_for_assignment() -> list[Problem]:
+    """Return active Problems from ready, confirmed Concept classifications."""
+
+    ready_concept_ids = {
+        concept.pk for concept in _ready_concepts_for_problem_assignment()
+    }
+    if not ready_concept_ids:
+        return []
+
+    return list(
+        Problem.objects.filter(is_active=True)
+        .filter(
+            Q(
+                classifications__concept_id__in=ready_concept_ids,
+                classifications__status=ProblemClassification.Status.CONFIRMED,
+            )
+            | Q(
+                concept_id__in=ready_concept_ids,
+                classifications__isnull=True,
+            )
+        )
+        .distinct()
+        .order_by("display_order", "title", "id")
+    )
+
+
+def _ordered_problem_candidates(
+    problems: list[Problem],
+    *,
+    now=None,
+) -> list[Problem]:
+    """Rank candidates by due review, Learning Status, then catalog order."""
+
+    if not problems:
+        return []
+
+    now = now or timezone.now()
+    problem_ids = [problem.pk for problem in problems]
+    statuses = dict(
+        ProblemLearningStatus.objects.filter(
+            problem_id__in=problem_ids
+        ).values_list("problem_id", "status")
+    )
+    review_due_at = dict(
+        ProblemReview.objects.filter(problem_id__in=problem_ids).values_list(
+            "problem_id", "due_at"
+        )
+    )
+
+    def is_due(problem: Problem) -> bool:
+        due_at = review_due_at.get(problem.pk)
+        return due_at is not None and due_at <= now
+
+    return sorted(
+        (
+            problem
+            for problem in problems
+            if statuses.get(problem.pk, LearningStatus.UNSEEN)
+            in _AUTO_ASSIGNABLE_STATUSES
+            or is_due(problem)
+        ),
+        key=lambda problem: (
+            0 if is_due(problem) else 1,
+            _STATUS_PRIORITY.get(
+                statuses.get(problem.pk, LearningStatus.UNSEEN),
+                len(_STATUS_PRIORITY),
+            ),
+            review_due_at.get(problem.pk) or now,
+            problem.display_order,
+            problem.title.casefold(),
+            problem.pk,
+        ),
+    )
+
+
+@transaction.atomic
+def assign_weekday_problems(
+    start_date: date | None = None,
+    *,
+    now=None,
+) -> list[StudyBlockProblem]:
+    """Fill each weekday solve block with up to two eligible Problems.
+
+    Automatic assignment is intentionally conservative: it never changes an
+    existing assignment, skips Problems already used elsewhere in the target
+    week, prioritizes due reviews and attempted/help-needed Problems, and
+    leaves independently solved Problems with a future due date alone.
+    Repeating this operation is therefore idempotent and safe to call from
+    planner page loads.
+    """
+
+    now = now or timezone.now()
+    target_week_start = week_start_for(start_date or timezone.localdate())
+    solve_blocks = list(
+        StudyBlock.objects.select_for_update()
+        .filter(
+            week_start=target_week_start,
+            date__range=(target_week_start, target_week_start + timedelta(days=4)),
+            routine_key__endswith="-problems",
+            status=StudyBlock.Status.PENDING,
+        )
+        .order_by("date", "position", "id")
+    )
+    if not solve_blocks:
+        return []
+
+    candidates = _ordered_problem_candidates(
+        _problem_candidates_for_assignment(),
+        now=now,
+    )
+    assigned_problem_ids = set(
+        StudyBlockProblem.objects.filter(
+            study_block__week_start=target_week_start,
+        ).values_list("problem_id", flat=True)
+    )
+    created_assignments: list[StudyBlockProblem] = []
+
+    for block in solve_blocks:
+        existing = list(
+            StudyBlockProblem.objects.select_for_update()
+            .filter(study_block=block)
+            .order_by("position", "id")
+        )
+        if len(existing) >= PROBLEMS_PER_WEEKDAY_BLOCK:
+            assigned_problem_ids.update(
+                assignment.problem_id for assignment in existing
+            )
+            continue
+
+        used_in_block = {assignment.problem_id for assignment in existing}
+        next_position = (
+            max((assignment.position for assignment in existing), default=-1) + 1
+        )
+        for problem in candidates:
+            if len(existing) >= PROBLEMS_PER_WEEKDAY_BLOCK:
+                break
+            if problem.pk in used_in_block or problem.pk in assigned_problem_ids:
+                continue
+
+            assignment = StudyBlockProblem.objects.create(
+                study_block=block,
+                problem=problem,
+                position=next_position,
+                assignment_source=StudyBlockProblem.AssignmentSource.AUTOMATIC,
+            )
+            existing.append(assignment)
+            created_assignments.append(assignment)
+            used_in_block.add(problem.pk)
+            assigned_problem_ids.add(problem.pk)
+            next_position += 1
+
+    return created_assignments
+
+
+@transaction.atomic
+def set_manual_problem_assignments(
+    block: StudyBlock,
+    problems: list[Problem],
+) -> list[StudyBlockProblem]:
+    """Replace one solve block's Problems after an explicit learner edit."""
+
+    if not block.is_problem_solve_block:
+        raise ValueError("Only weekday solve blocks can receive Problem assignments.")
+    unique_problem_ids = list(dict.fromkeys(problem.pk for problem in problems))
+    if len(unique_problem_ids) > PROBLEMS_PER_WEEKDAY_BLOCK:
+        raise ValueError("Choose at most two Problems for one solve block.")
+    if any(not problem.pk or not problem.is_active for problem in problems):
+        raise ValueError("Manual assignments must use active catalog Problems.")
+
+    StudyBlockProblem.objects.filter(study_block=block).delete()
+    StudyBlockProblem.objects.bulk_create(
+        [
+            StudyBlockProblem(
+                study_block=block,
+                problem=problem,
+                position=position,
+                assignment_source=StudyBlockProblem.AssignmentSource.MANUAL,
+            )
+            for position, problem in enumerate(problems)
+        ]
+    )
+    return list(
+        StudyBlockProblem.objects.filter(study_block=block).order_by("position", "id")
+    )
 
 
 def is_weekly_routine_complete(value: date) -> bool:

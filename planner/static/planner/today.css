@@ -212,6 +212,58 @@ h1 {
   color: var(--amber);
 }
 
+.assigned-problems {
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.assigned-problems-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.problem-count,
+.problem-meta,
+.problem-pool-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.problem-assignment-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.problem-assignment-list li {
+  padding-left: 4px;
+}
+
+.problem-assignment-list a {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-color: var(--amber);
+  text-underline-offset: 3px;
+}
+
+.problem-assignment-list a:hover,
+.problem-assignment-list a:focus-visible {
+  color: var(--amber);
+}
+
+.problem-meta {
+  margin-left: 6px;
+}
+
+.problem-pool-empty {
+  margin: 10px 0 0;
+  line-height: 1.5;
+}
+
 .study-block-meta {
   display: flex;
   align-items: center;

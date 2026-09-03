@@ -107,6 +107,14 @@
                           </label>
                         {% endif %}
                       </div>
+                      {% if item.block.is_problem_solve_block %}
+                        <label class="problem-assignment-editor">
+                          Problems
+                          {{ item.form.assigned_problems }}
+                          <small>{{ item.form.assigned_problems.help_text }}</small>
+                        </label>
+                        <input type="hidden" name="manage_problems" value="1">
+                      {% endif %}
                       {% if item.block.is_carried_forward %}
                         <p class="carry-forward-note" data-testid="carry-forward-label">
                           Carried forward from {{ item.block.carried_from.date|date:'M j, Y' }}
@@ -116,6 +124,7 @@
                         <div class="form-errors" role="alert" data-testid="edit-errors">
                           {% for error in item.form.title.errors %}<p>{{ error }}</p>{% endfor %}
                           {% for error in item.form.planned_minutes.errors %}<p>{{ error }}</p>{% endfor %}
+                          {% for error in item.form.assigned_problems.errors %}<p>{{ error }}</p>{% endfor %}
                           {% for error in item.form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
                         </div>
                       {% endif %}
@@ -136,6 +145,8 @@
                         No concept assigned yet.
                       </p>
                     {% endif %}
+
+                    {% include "planner/_problem_assignments.html" with block=item.block %}
 
                     <div class="reorder-controls" aria-label="Reorder {{ item.block.title }}">
                       <form method="post" action="{% url 'planner:reorder_study_block' item.block.pk %}">
