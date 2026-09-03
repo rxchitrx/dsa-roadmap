@@ -45,6 +45,21 @@ a { color: inherit; }
   text-decoration: none;
 }
 
+.graph-nav-link {
+  display: inline-block;
+  margin: 0 0 46px 18px;
+  color: var(--amber-soft);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.graph-nav-link:hover,
+.graph-nav-link:focus-visible,
+.graph-lesson-link:hover,
+.graph-lesson-link:focus-visible,
+.edge-item a:hover,
+.edge-item a:focus-visible { color: var(--amber); }
+
 .back-link:hover,
 .back-link:focus-visible,
 .concept-row a:hover,
@@ -113,6 +128,32 @@ h1 {
 .empty-state h3 { margin-bottom: 8px; }
 .empty-state p { margin-bottom: 0; color: var(--muted); }
 
+.graph-header { max-width: 920px; }
+.graph-messages { margin-top: 28px; }
+.graph-message { margin: 0 0 10px; border: 1px solid var(--border); border-radius: 10px; padding: 13px 16px; color: var(--muted); line-height: 1.5; }
+.graph-message--success { border-color: #46694c; color: var(--green); }
+.graph-message--error { border-color: #8c4f43; color: #efaa99; }
+.graph-list { padding-top: 52px; }
+.graph-card { margin-top: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); padding: 26px; }
+.graph-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.graph-card-heading h3 { margin: 6px 0 0; font-size: 1.35rem; letter-spacing: -0.03em; }
+.graph-lesson-link { color: var(--muted); font-size: 0.86rem; text-decoration: none; white-space: nowrap; }
+.graph-card-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.95fr); gap: 32px; margin-top: 26px; border-top: 1px solid var(--border); padding-top: 22px; }
+.sidebar-label { margin-bottom: 10px; color: var(--muted); }
+.edge-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.edge-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-left: 2px solid var(--amber); background: var(--surface-raised); padding: 11px 12px; }
+.edge-item a { min-width: 0; color: var(--amber-soft); text-decoration: none; }
+.quiet-button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 0.8rem; padding: 4px 0; }
+.quiet-button:hover, .quiet-button:focus-visible { color: #efaa99; }
+.graph-muted, .form-hint { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.edge-form { border: 1px solid var(--border); border-radius: 11px; background: var(--surface-raised); padding: 16px; }
+.edge-form label { display: block; margin-bottom: 10px; color: var(--text); font-size: 0.88rem; font-weight: 650; }
+.edge-form-controls { display: flex; gap: 9px; }
+.edge-form select { min-width: 0; flex: 1; border: 1px solid var(--border); border-radius: 7px; background: var(--ink); color: var(--text); font: inherit; padding: 9px 10px; }
+button { border: 1px solid #8f672e; border-radius: 7px; background: var(--amber); color: var(--ink); cursor: pointer; font: inherit; font-size: 0.84rem; font-weight: 700; padding: 9px 13px; }
+button:hover, button:focus-visible { background: var(--amber-soft); }
+.form-hint { margin-top: 10px; font-size: 0.78rem; }
+
 .lesson-header { max-width: none; }
 .lesson-header h1 { max-width: 900px; }
 .lesson-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 72px; padding-top: 54px; }
@@ -157,6 +198,7 @@ pre { overflow-x: auto; margin: 18px 0 0; border: 1px solid var(--border); borde
   .lesson-layout { display: block; padding-top: 34px; }
   .lesson-sidebar { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 34px; }
   .lesson-section--split, .practice-grid { grid-template-columns: 1fr; }
+  .graph-card-body { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -168,4 +210,9 @@ pre { overflow-x: auto; margin: 18px 0 0; border: 1px solid var(--border); borde
   .lesson-sidebar { display: block; }
   .example-grid { grid-template-columns: 1fr; }
   .lesson-section { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; }
+  .graph-nav-link { margin-left: 0; }
+  .graph-card { padding: 20px; }
+  .graph-card-heading { display: block; }
+  .graph-lesson-link { display: inline-block; margin-top: 12px; }
+  .edge-form-controls { display: grid; grid-template-columns: 1fr; }
 }

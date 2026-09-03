@@ -11,6 +11,7 @@
     <main class="lesson-shell" data-testid="concept-lesson">
       <header class="lesson-header">
         <a class="back-link" href="{% url 'curriculum:index' %}">← All concepts</a>
+        <a class="graph-nav-link" href="{% url 'curriculum:prerequisite_graph' %}">Edit prerequisite graph ↗</a>
         <p class="eyebrow">{{ concept.topic.name }} / LESSON {{ concept.order|stringformat:"02d" }}</p>
         <h1>{{ concept.name }}</h1>
         <p class="lesson-summary">{{ concept.summary }}</p>

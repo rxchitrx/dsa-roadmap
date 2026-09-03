@@ -1,0 +1,95 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Prerequisite graph · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'curriculum/curriculum.css' %}">
+  </head>
+  <body>
+    <main class="curriculum-shell graph-shell" data-testid="prerequisite-graph">
+      <header class="curriculum-header graph-header">
+        <a class="back-link" href="{% url 'curriculum:index' %}">← All concepts</a>
+        <p class="eyebrow">DSA ROADMAP / GRAPH</p>
+        <h1>Shape your sequence.</h1>
+        <p class="lede">Keep the direct prerequisites honest. Each arrow points from a concept to what it needs first.</p>
+      </header>
+
+      {% if messages %}
+        <div class="graph-messages" aria-live="polite">
+          {% for message in messages %}
+            <p class="graph-message graph-message--{{ message.tags }}">{{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <section class="graph-list" aria-labelledby="graph-heading">
+        <div class="section-heading">
+          <p class="eyebrow">DIRECT EDGES</p>
+          <h2 id="graph-heading">Concept prerequisites</h2>
+        </div>
+
+        {% for concept in concepts %}
+          <article class="graph-card" data-testid="concept-graph-row">
+            <div class="graph-card-heading">
+              <div>
+                <p class="topic-kicker">{{ concept.topic.name }}</p>
+                <h3>{{ concept.name }}</h3>
+              </div>
+              <a class="graph-lesson-link" href="{% url 'curriculum:concept_detail' concept_slug=concept.slug %}">Open lesson ↗</a>
+            </div>
+
+            <div class="graph-card-body">
+              <div class="direct-prerequisites">
+                <p class="sidebar-label">Direct prerequisites</p>
+                {% with prerequisites=concept.prerequisites.all %}
+                  {% if prerequisites %}
+                    <ul class="edge-list">
+                      {% for prerequisite in prerequisites %}
+                        <li class="edge-item">
+                          <a href="{% url 'curriculum:concept_detail' concept_slug=prerequisite.slug %}">{{ prerequisite.name }}</a>
+                          <form method="post" action="{% url 'curriculum:graph_remove' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="concept_id" value="{{ concept.pk }}">
+                            <input type="hidden" name="prerequisite_id" value="{{ prerequisite.pk }}">
+                            <button class="quiet-button" type="submit" aria-label="Remove {{ prerequisite.name }} as a prerequisite">Remove</button>
+                          </form>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <p class="graph-muted">No prerequisite yet — this can be a starting point.</p>
+                  {% endif %}
+                {% endwith %}
+              </div>
+
+              <form class="edge-form" method="post" action="{% url 'curriculum:graph_add' %}">
+                {% csrf_token %}
+                <input type="hidden" name="concept_id" value="{{ concept.pk }}">
+                <label for="prerequisite-{{ concept.pk }}">Add a direct prerequisite</label>
+                <div class="edge-form-controls">
+                  <select id="prerequisite-{{ concept.pk }}" name="prerequisite_id" required>
+                    <option value="">Choose a concept…</option>
+                    {% for option in concepts %}
+                      {% if option.pk != concept.pk %}
+                        <option value="{{ option.pk }}">{{ option.name }} · {{ option.topic.name }}</option>
+                      {% endif %}
+                    {% endfor %}
+                  </select>
+                  <button type="submit">Add edge</button>
+                </div>
+                <p class="form-hint">Self-links and cycles are blocked automatically.</p>
+              </form>
+            </div>
+          </article>
+        {% empty %}
+          <div class="empty-state">
+            <h3>Your graph is waiting.</h3>
+            <p>Seed the curriculum before editing prerequisite relationships.</p>
+          </div>
+        {% endfor %}
+      </section>
+    </main>
+  </body>
+</html>
