@@ -2,6 +2,7 @@ import pytest
 from django.db import connection
 
 from assessments.models import (
+    AssessmentMistake,
     AssessmentPool,
     AssessmentResponse,
     AssessmentSelection,
@@ -17,6 +18,7 @@ def ensure_assessment_tables(transactional_db):
     created_models = []
     with connection.schema_editor() as schema_editor:
         for model in (
+            AssessmentMistake,
             AssessmentPool,
             AssessmentSelection,
             AssessmentSession,
@@ -30,6 +32,7 @@ def ensure_assessment_tables(transactional_db):
 
     # The isolated app is intentionally not in INSTALLED_APPS yet, so normal
     # pytest-django flushing does not know about these tables.
+    AssessmentMistake.objects.all().delete()
     AssessmentResponse.objects.all().delete()
     AssessmentSession.objects.all().delete()
     AssessmentSelection.objects.all().delete()

@@ -14,4 +14,9 @@ urlpatterns = [
         views.assessment_session,
         name="assessment_session",
     ),
+    path(
+        "saturday/assessment/<int:session_id>/mistakes/",
+        views.assessment_mistakes,
+        name="assessment_mistakes",
+    ),
 ]

@@ -232,3 +232,59 @@ class AssessmentResponse(models.Model):
     @property
     def has_progress(self) -> bool:
         return bool(self.draft_answer.strip()) or self.outcome != self.Outcome.NOT_STARTED
+
+
+class AssessmentMistake(models.Model):
+    """A structured follow-up item for one failed or skipped assessment Problem."""
+
+    class Cause(models.TextChoices):
+        CONCEPT_GAP = "concept_gap", "Concept gap"
+        WRONG_PATTERN = "wrong_pattern", "Wrong pattern"
+        IMPLEMENTATION_BUG = "implementation_bug", "Implementation bug"
+        EDGE_CASE_MISS = "edge_case_miss", "Missed an edge case"
+        COMPLEXITY_MISS = "complexity_miss", "Complexity mistake"
+        RUSHED_OR_INCOMPLETE = "rushed_or_incomplete", "Rushed or incomplete"
+        OTHER = "other", "Other"
+
+    assessment = models.ForeignKey(
+        AssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="mistakes",
+    )
+    response = models.OneToOneField(
+        AssessmentResponse,
+        on_delete=models.CASCADE,
+        related_name="mistake",
+    )
+    problem = models.ForeignKey(
+        "problems.Problem",
+        on_delete=models.PROTECT,
+        related_name="assessment_mistakes",
+    )
+    cause = models.CharField(
+        max_length=32,
+        choices=Cause.choices,
+        blank=True,
+    )
+    corrected_approach = models.TextField(blank=True)
+    next_action = models.TextField(blank=True)
+    is_complete = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "assessments"
+        ordering = ("response__selection__position", "id")
+        indexes = [
+            models.Index(
+                fields=("assessment", "is_complete"),
+                name="assess_mistake_status_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Mistake review for {self.problem.title}"
+
+    @property
+    def status_label(self) -> str:
+        return "Complete" if self.is_complete else "Incomplete"

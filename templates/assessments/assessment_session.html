@@ -88,6 +88,12 @@
               </div>
             </section>
           {% endif %}
+          {% if session.mistakes.count %}
+            <div class="mistake-review-cta">
+              <a class="primary-button" href="{% url 'assessments:assessment_mistakes' session_id=session.pk %}" data-testid="review-mistakes-link">Review {{ session.mistakes.count }} mistake{{ session.mistakes.count|pluralize }} →</a>
+              <span class="summary-meta">Turn each miss into one correction before the next assessment.</span>
+            </div>
+          {% endif %}
         </section>
       {% else %}
         <section class="problem-nav" aria-label="Assessment Problems">

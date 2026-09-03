@@ -2,16 +2,20 @@ from datetime import datetime
 
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from .forms import AssessmentMistakeForm
 from .models import AssessmentPool, AssessmentResponse, AssessmentSession
 from .services import (
     AssessmentUnavailable,
+    generate_assessment_mistakes,
     generate_saturday_assessment_pool,
     get_assessment_summary,
     navigate_assessment,
     refresh_assessment_session,
+    save_assessment_mistake,
     save_assessment_response,
     start_saturday_assessment,
     submit_assessment,
@@ -128,5 +132,72 @@ def assessment_session(request, session_id: int):
             "remaining_seconds": remaining_seconds,
             "summary": summary,
             "outcomes": AssessmentResponse.Outcome.choices,
+        },
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def assessment_mistakes(request, session_id: int):
+    """Review the failed or skipped Problems from one Assessment."""
+
+    assessment = get_object_or_404(
+        AssessmentSession.objects.select_related("pool"),
+        pk=session_id,
+    )
+    generate_assessment_mistakes(assessment)
+    mistakes = list(
+        assessment.mistakes.select_related("problem", "response")
+        .order_by("response__selection__position", "id")
+    )
+    forms_by_mistake = {}
+
+    if request.method == "POST":
+        try:
+            mistake_id = int(request.POST.get("mistake", ""))
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("Choose a valid assessment mistake.")
+        mistake = next((item for item in mistakes if item.pk == mistake_id), None)
+        if mistake is None:
+            return HttpResponseBadRequest("That assessment mistake does not exist.")
+
+        form = AssessmentMistakeForm(request.POST, instance=mistake)
+        action = request.POST.get("action", "save")
+        if action not in {"save", "complete", "incomplete"}:
+            return HttpResponseBadRequest("Choose a valid mistake action.")
+        if form.is_valid():
+            save_assessment_mistake(
+                mistake,
+                cause=form.cleaned_data["cause"],
+                corrected_approach=form.cleaned_data["corrected_approach"],
+                next_action=form.cleaned_data["next_action"],
+                is_complete=(
+                    True if action == "complete" else
+                    False if action == "incomplete" else None
+                ),
+            )
+            return redirect(
+                f"{reverse('assessments:assessment_mistakes', kwargs={'session_id': assessment.pk})}?saved=1"
+            )
+        forms_by_mistake[mistake.pk] = form
+
+    mistake_items = [
+        {
+            "mistake": mistake,
+            "form": forms_by_mistake.get(
+                mistake.pk,
+                AssessmentMistakeForm(instance=mistake),
+            ),
+        }
+        for mistake in mistakes
+    ]
+    return render(
+        request,
+        "assessments/assessment_mistakes.html",
+        {
+            "assessment": assessment,
+            "mistake_items": mistake_items,
+            "mistake_count": len(mistakes),
+            "complete_count": sum(mistake.is_complete for mistake in mistakes),
+            "mistake_saved": request.GET.get("saved") == "1",
         },
     )

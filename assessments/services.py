@@ -13,6 +13,7 @@ from practice.models import LearningStatus, ProblemLearningStatus
 from problems.models import Problem
 
 from .models import (
+    AssessmentMistake,
     AssessmentPool,
     AssessmentResponse,
     AssessmentSelection,
@@ -32,6 +33,14 @@ class AssessmentUnavailable(ValueError):
 
 class AssessmentClosed(ValueError):
     """Raised when a response is changed after final submission."""
+
+
+MISTAKE_OUTCOMES = frozenset(
+    {
+        AssessmentResponse.Outcome.NEEDS_REVIEW,
+        AssessmentResponse.Outcome.SKIPPED,
+    }
+)
 
 
 def week_start_for(value: date) -> date:
@@ -713,6 +722,64 @@ def get_assessment_summary(session: AssessmentSession) -> dict:
 
 
 @transaction.atomic
+def generate_assessment_mistakes(session: AssessmentSession):
+    """Create one durable mistake item for every failed or skipped response.
+
+    Assessment responses are the source of truth for the outcome. The
+    one-to-one response link makes this operation safe to call again when a
+    completed Assessment is reopened.
+    """
+
+    responses = (
+        session.responses.select_related("selection__problem")
+        .filter(outcome__in=MISTAKE_OUTCOMES)
+        .order_by("selection__position", "id")
+    )
+    for response in responses:
+        AssessmentMistake.objects.get_or_create(
+            response=response,
+            defaults={
+                "assessment": session,
+                "problem": response.selection.problem,
+            },
+        )
+    return session.mistakes.select_related("problem", "response").order_by(
+        "response__selection__position", "id"
+    )
+
+
+@transaction.atomic
+def save_assessment_mistake(
+    mistake: AssessmentMistake,
+    *,
+    cause: str = "",
+    corrected_approach: str = "",
+    next_action: str = "",
+    is_complete: bool | None = None,
+) -> AssessmentMistake:
+    """Save the learner's diagnosis while preserving its Assessment links."""
+
+    valid_causes = {value for value, _label in AssessmentMistake.Cause.choices}
+    if cause and cause not in valid_causes:
+        raise ValueError("Choose a valid mistake cause.")
+    mistake.cause = cause
+    mistake.corrected_approach = corrected_approach
+    mistake.next_action = next_action
+    if is_complete is not None:
+        mistake.is_complete = is_complete
+    mistake.save(
+        update_fields=(
+            "cause",
+            "corrected_approach",
+            "next_action",
+            "is_complete",
+            "updated_at",
+        )
+    )
+    return mistake
+
+
+@transaction.atomic
 def save_assessment_response(
     session: AssessmentSession,
     position: int,
@@ -765,6 +832,7 @@ def submit_assessment(session: AssessmentSession, now=None) -> AssessmentSession
     current_time = _now(now)
     session = refresh_assessment_session(session, current_time)
     if session.status == AssessmentSession.Status.COMPLETED:
+        generate_assessment_mistakes(session)
         return session
     if session.cutoff_recorded_at is None:
         _record_cutoff_snapshot(
@@ -779,4 +847,5 @@ def submit_assessment(session: AssessmentSession, now=None) -> AssessmentSession
     session.save(
         update_fields=("submitted_at", "status", "final_summary", "updated_at")
     )
+    generate_assessment_mistakes(session)
     return session

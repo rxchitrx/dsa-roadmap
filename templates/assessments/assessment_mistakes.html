@@ -1,0 +1,91 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Assessment mistakes · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'assessments/assessment.css' %}">
+  </head>
+  <body>
+    <main class="assessment-shell mistake-shell" data-testid="assessment-mistakes">
+      <header class="assessment-header">
+        <a class="back-link" href="{% url 'assessments:assessment_session' session_id=assessment.pk %}">← Assessment result</a>
+        <p class="eyebrow">DSA ROADMAP / MISTAKE REVIEW</p>
+        <h1>Turn misses into fixes.</h1>
+        <p class="lede">Review each Problem you could not finish or skipped. Name what broke, write the corrected approach, and choose the next action.</p>
+      </header>
+
+      {% if mistake_saved %}
+        <p class="notice" role="status" data-testid="mistake-saved">Mistake review saved.</p>
+      {% endif %}
+
+      <section class="mistake-summary" data-testid="mistake-summary">
+        <div>
+          <p class="eyebrow">WEEK OF {{ assessment.pool.week_start|date:"M j, Y" }}</p>
+          <h2>{{ complete_count }} of {{ mistake_count }} mistake{{ mistake_count|pluralize }} complete</h2>
+        </div>
+        <span class="status {% if complete_count == mistake_count %}status--complete{% else %}status--incomplete{% endif %}">{{ assessment.get_status_display }}</span>
+      </section>
+
+      {% if mistake_items %}
+        <section class="mistake-list" aria-label="Assessment mistakes">
+          {% for item in mistake_items %}
+            <article class="mistake-card {% if item.mistake.is_complete %}mistake-card--complete{% endif %}" data-testid="assessment-mistake">
+              <div class="mistake-card-header">
+                <div>
+                  <p class="eyebrow">PROBLEM {{ item.mistake.response.selection.position|stringformat:"02d" }}</p>
+                  <h2>{{ item.mistake.problem.title }}</h2>
+                  <p class="mistake-context">{{ item.mistake.response.get_outcome_display }} · {{ item.mistake.problem.get_difficulty_display }}</p>
+                </div>
+                <span class="status {% if item.mistake.is_complete %}status--complete{% else %}status--incomplete{% endif %}" data-testid="mistake-status">{{ item.mistake.status_label }}</span>
+              </div>
+              <p class="mistake-statement">{{ item.mistake.problem.statement }}</p>
+              <a class="problem-link" href="{% url 'problems:detail' slug=item.mistake.problem.slug %}">Open Problem details →</a>
+
+              <form method="post" class="mistake-form" data-testid="mistake-form">
+                {% csrf_token %}
+                <input type="hidden" name="mistake" value="{{ item.mistake.pk }}">
+                {% if item.form.non_field_errors %}{% for error in item.form.non_field_errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}{% endif %}
+                <div class="mistake-fields">
+                  <div class="mistake-field">
+                    {{ item.form.cause.label_tag }}
+                    <p class="field-help">{{ item.form.cause.help_text }}</p>
+                    {{ item.form.cause }}
+                    {% for error in item.form.cause.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                  </div>
+                  <div class="mistake-field">
+                    {{ item.form.corrected_approach.label_tag }}
+                    <p class="field-help">{{ item.form.corrected_approach.help_text }}</p>
+                    {{ item.form.corrected_approach }}
+                    {% for error in item.form.corrected_approach.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                  </div>
+                  <div class="mistake-field">
+                    {{ item.form.next_action.label_tag }}
+                    <p class="field-help">{{ item.form.next_action.help_text }}</p>
+                    {{ item.form.next_action }}
+                    {% for error in item.form.next_action.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                  </div>
+                </div>
+                <div class="mistake-actions">
+                  <button class="secondary-button" type="submit" name="action" value="save">Save notes</button>
+                  {% if item.mistake.is_complete %}
+                    <button class="secondary-button" type="submit" name="action" value="incomplete">Mark incomplete</button>
+                  {% else %}
+                    <button class="primary-button" type="submit" name="action" value="complete" data-testid="mark-mistake-complete">Mark complete</button>
+                  {% endif %}
+                </div>
+              </form>
+            </article>
+          {% endfor %}
+        </section>
+      {% else %}
+        <section class="empty-state" data-testid="no-mistakes">
+          <p class="eyebrow">CLEAN ASSESSMENT</p>
+          <h2>No mistake reviews yet.</h2>
+          <p>This Assessment has no Problems marked Needs review or Skipped. Return here after a future Assessment to turn a miss into a concrete correction.</p>
+        </section>
+      {% endif %}
+    </main>
+  </body>
+</html>
