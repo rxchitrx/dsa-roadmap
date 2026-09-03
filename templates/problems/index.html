@@ -108,7 +108,7 @@
                   </div>
                   <span class="problem-number">{{ forloop.counter|stringformat:"02d" }}</span>
                 </div>
-                <h3>{{ problem.title }}</h3>
+                <h3><a class="problem-card-link" href="{% url 'problems:detail' slug=problem.slug %}">{{ problem.title }}</a></h3>
                 <p class="problem-statement">{{ problem.statement }}</p>
                 <div class="problem-card-footer">
                   {% if problem.concept %}

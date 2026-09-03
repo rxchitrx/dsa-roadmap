@@ -185,3 +185,98 @@ def test_problem_library_shows_metadata_warning_and_no_match_state(client, catal
     assert "Needs concept classification" in missing_html
     assert "That combination is empty." in empty_html
     assert "Show all problems" in empty_html
+
+
+@pytest.mark.django_db
+@override_settings(ROOT_URLCONF="problems.tests.urls")
+def test_problem_detail_renders_statement_examples_and_source_metadata(client, catalog):
+    problem = Problem.objects.create(
+        concept=catalog["pointers"],
+        title="Detail-ready palindrome",
+        slug="detail-ready-palindrome",
+        statement="Return whether the input reads the same from both ends.",
+        difficulty=Problem.Difficulty.EASY,
+        source_name="LeetCode",
+        source_problem_id="125",
+        source_url="https://leetcode.com/problems/valid-palindrome/",
+        examples=[
+            {
+                "input": "s = 'racecar'",
+                "output": "true",
+                "walkthrough": "Compare matching characters from both ends.",
+            }
+        ],
+    )
+
+    response = client.get(reverse("problems:detail", kwargs={"slug": problem.slug}))
+
+    assert response.status_code == 200
+    assert response.context["problem"] == problem
+    html = response.content.decode()
+    assert "Return whether the input reads the same from both ends." in html
+    assert "Example 1" in html
+    assert "s = &#x27;racecar&#x27;" in html
+    assert "Compare matching characters from both ends." in html
+    assert "LeetCode" in html
+    assert "ID: 125" in html
+    assert "O(n)" in html
+    assert 'target="_blank"' in html
+    assert 'rel="noopener noreferrer nofollow"' in html
+    assert 'href="https://leetcode.com/problems/valid-palindrome/"' in html
+
+
+@pytest.mark.django_db
+@override_settings(ROOT_URLCONF="problems.tests.urls")
+def test_problem_detail_shows_missing_optional_fields_without_broken_links(client, catalog):
+    problem = Problem.objects.get(slug="unclassified-practice-prompt")
+
+    response = client.get(reverse("problems:detail", kwargs={"slug": problem.slug}))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "This record is waiting for catalog metadata." in html
+    assert "No examples have been added for this problem yet." in html
+    assert "Constraints are not recorded yet." in html
+    assert "Expected complexity is not recorded yet." in html
+    assert "Source name and identifier are not recorded yet." in html
+    assert "No external source link has been added for this problem." in html
+    assert 'target="_blank"' not in html
+
+
+@pytest.mark.django_db
+@override_settings(ROOT_URLCONF="problems.tests.urls")
+def test_problem_detail_rejects_unsafe_source_urls(client, catalog):
+    problem = Problem.objects.create(
+        title="Unsafe source sample",
+        slug="unsafe-source-sample",
+        statement="A source URL should be treated as data, not executable markup.",
+        source_name="Imported source",
+        source_url="javascript:alert(1)",
+    )
+
+    response = client.get(reverse("problems:detail", kwargs={"slug": problem.slug}))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert "javascript:alert(1)" not in html
+    assert "No external source link has been added for this problem." in html
+
+
+@pytest.mark.django_db
+@override_settings(ROOT_URLCONF="problems.tests.urls")
+def test_problem_library_links_each_problem_to_its_detail_page(client, catalog):
+    response = client.get(reverse("problems:index"))
+
+    assert response.status_code == 200
+    html = response.content.decode()
+    assert 'href="/problems/valid-palindrome/"' in html
+
+
+@pytest.mark.django_db
+@override_settings(ROOT_URLCONF="problems.tests.urls")
+def test_problem_detail_hides_inactive_problems(client, catalog):
+    response = client.get(
+        reverse("problems:detail", kwargs={"slug": "inactive-old-record"})
+    )
+
+    assert response.status_code == 404

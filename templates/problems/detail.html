@@ -1,0 +1,144 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ problem.title }} · Problems · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'problems/problems.css' %}">
+  </head>
+  <body>
+    <main class="problems-shell" data-testid="problem-detail">
+      <header class="problems-header detail-header">
+        <div class="detail-topline">
+          <a class="back-link" href="{% url 'problems:index' %}">← Problem library</a>
+          <div class="problem-tags">
+            {% if problem.difficulty %}
+              <span class="difficulty difficulty--{{ problem.difficulty }}">{{ problem.get_difficulty_display }}</span>
+            {% else %}
+              <span class="metadata-warning">Difficulty not set</span>
+            {% endif %}
+            {% if problem.source_name %}
+              <span class="source-label">{{ problem.source_name }}{% if problem.source_problem_id %} · {{ problem.source_problem_id }}{% endif %}</span>
+            {% else %}
+              <span class="metadata-warning">Source not set</span>
+            {% endif %}
+          </div>
+        </div>
+        <p class="eyebrow">DSA ROADMAP / PRACTICE PROBLEM</p>
+        <h1>{{ problem.title }}</h1>
+        {% if safe_source_url %}
+          <a class="source-link" href="{{ safe_source_url }}" target="_blank" rel="noopener noreferrer nofollow">
+            Open {{ problem.source_name|default:"external source" }}{% if problem.source_problem_id %} #{{ problem.source_problem_id }}{% endif %} ↗
+          </a>
+        {% else %}
+          <p class="missing-field">No external source link has been added for this problem.</p>
+        {% endif %}
+      </header>
+
+      <div class="detail-layout">
+        <article class="detail-main">
+          <section class="detail-section" aria-labelledby="statement-heading">
+            <p class="section-index">01</p>
+            <h2 id="statement-heading">Statement</h2>
+            {% if problem.statement %}
+              <p class="statement">{{ problem.statement }}</p>
+            {% else %}
+              <div class="detail-empty"><p>The problem statement has not been added yet.</p></div>
+            {% endif %}
+          </section>
+
+          <section class="detail-section" aria-labelledby="examples-heading">
+            <p class="section-index">02</p>
+            <h2 id="examples-heading">Examples</h2>
+            {% if problem.examples %}
+              {% for example in problem.examples %}
+                <div class="example-block">
+                  <h3>Example {{ forloop.counter }}{% if example.title %}: {{ example.title }}{% endif %}</h3>
+                  {% if example.input or example.output %}
+                    <div class="example-grid">
+                      {% if example.input %}
+                        <div class="example-cell">
+                          <span class="example-label">Input</span>
+                          <code>{{ example.input }}</code>
+                        </div>
+                      {% endif %}
+                      {% if example.output %}
+                        <div class="example-cell">
+                          <span class="example-label">Output</span>
+                          <code>{{ example.output }}</code>
+                        </div>
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    <div class="detail-empty"><p>This example does not have input/output details yet.</p></div>
+                  {% endif %}
+                  {% if example.walkthrough %}
+                    <p class="example-note">{{ example.walkthrough }}</p>
+                  {% elif example.explanation %}
+                    <p class="example-note">{{ example.explanation }}</p>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="detail-empty"><p>No examples have been added for this problem yet.</p></div>
+            {% endif %}
+          </section>
+
+          <section class="detail-section" aria-labelledby="details-heading">
+            <p class="section-index">03</p>
+            <h2 id="details-heading">What to keep in mind</h2>
+            <div class="detail-meta-grid">
+              <div class="meta-card">
+                <p class="example-label">Constraints</p>
+                {% if constraints %}
+                  <p>{{ constraints }}</p>
+                {% else %}
+                  <p class="missing-field">Constraints are not recorded yet.</p>
+                {% endif %}
+              </div>
+              <div class="meta-card">
+                <p class="example-label">Expected complexity</p>
+                {% if complexity %}
+                  <p>{{ complexity }}</p>
+                {% else %}
+                  <p class="missing-field">Expected complexity is not recorded yet.</p>
+                {% endif %}
+              </div>
+            </div>
+          </section>
+
+          {% if problem.tags %}
+            <section class="detail-section" aria-labelledby="tags-heading">
+              <p class="section-index">04</p>
+              <h2 id="tags-heading">Tags</h2>
+              <p class="tag-list tag-list--detail">{% for tag in problem.tags %}#{{ tag }}{% if not forloop.last %} {% endif %}{% endfor %}</p>
+            </section>
+          {% endif %}
+        </article>
+
+        <aside class="detail-sidebar" aria-label="Problem metadata">
+          <div class="sidebar-block">
+            <p class="sidebar-label">Curriculum</p>
+            {% if problem.concept %}
+              <p class="sidebar-value">{{ problem.concept.topic.name }}<br>{{ problem.concept.name }}</p>
+            {% else %}
+              <p class="sidebar-muted">This problem still needs a concept classification.</p>
+            {% endif %}
+          </div>
+          <div class="sidebar-block">
+            <p class="sidebar-label">Source</p>
+            {% if problem.source_name or problem.source_problem_id %}
+              <p class="sidebar-value">{{ problem.source_name|default:"Source name not set" }}{% if problem.source_problem_id %}<br>ID: {{ problem.source_problem_id }}{% endif %}</p>
+            {% else %}
+              <p class="sidebar-muted">Source name and identifier are not recorded yet.</p>
+            {% endif %}
+          </div>
+          <div class="sidebar-block">
+            <a class="secondary-button" href="{% url 'problems:index' %}">Back to all problems</a>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </body>
+</html>

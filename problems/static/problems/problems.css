@@ -199,6 +199,9 @@ input:focus-visible, select:focus-visible { border-color: var(--amber); outline:
 .problem-number { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .problem-card h3 { margin: 22px 0 10px; font-size: 1.35rem; letter-spacing: -0.03em; }
+.problem-card-link { color: var(--text); text-decoration: none; }
+.problem-card-link:hover,
+.problem-card-link:focus-visible { color: var(--amber-soft); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .problem-statement { max-width: 78ch; margin-bottom: 24px; color: var(--muted); line-height: 1.65; }
 .problem-card-footer { align-items: flex-end; border-top: 1px solid var(--border); padding-top: 16px; }
 .concept-path { color: var(--text); font-size: 0.83rem; }
@@ -210,6 +213,57 @@ input:focus-visible, select:focus-visible { border-color: var(--amber); outline:
 .empty-state h3 { margin-bottom: 8px; font-size: 1.35rem; }
 .empty-state p:not(.empty-kicker) { max-width: 55ch; margin-bottom: 20px; color: var(--muted); line-height: 1.6; }
 .secondary-button { border: 1px solid var(--border); padding: 10px 14px; color: var(--muted); }
+
+.detail-header { max-width: 860px; }
+.detail-header h1 { max-width: 13ch; }
+.detail-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.detail-topline .problem-tags { margin: 0; }
+.source-link { color: var(--amber-soft); font-size: 0.84rem; font-weight: 750; text-underline-offset: 4px; }
+.source-link:hover,
+.source-link:focus-visible { color: var(--amber); }
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.7fr); gap: 18px; padding-top: 50px; }
+.detail-main,
+.detail-sidebar,
+.detail-section,
+.detail-empty { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.detail-main { padding: 30px; }
+.detail-sidebar { align-self: start; padding: 24px; }
+.detail-section + .detail-section { margin-top: 42px; }
+.detail-section h2 { margin: 8px 0 14px; font-size: 1.5rem; }
+.detail-section > p { color: var(--muted); line-height: 1.75; }
+.statement { color: var(--text) !important; font-size: 1.08rem; }
+.section-index { margin-bottom: 0; color: var(--amber); font-size: 0.7rem; font-weight: 750; letter-spacing: 0.14em; }
+.example-block { border-top: 1px solid var(--border); padding: 20px 0 0; }
+.example-block + .example-block { margin-top: 22px; }
+.example-block h3 { margin: 0 0 14px; font-size: 1rem; }
+.example-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.example-cell { display: grid; gap: 7px; min-width: 0; }
+.example-label,
+.sidebar-label { color: var(--muted); font-size: 0.7rem; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; }
+.example-cell code { overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; background: var(--surface-raised); color: var(--amber-soft); font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.85rem; line-height: 1.5; }
+.example-note { margin: 13px 0 0; color: var(--muted); line-height: 1.65; }
+.detail-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.meta-card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--surface-raised); }
+.meta-card p:last-child { margin: 7px 0 0; color: var(--text); line-height: 1.55; }
+.missing-field { color: var(--muted) !important; font-size: 0.88rem; }
+.sidebar-block + .sidebar-block { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 22px; }
+.sidebar-label { margin-bottom: 8px; }
+.sidebar-value { margin: 0; color: var(--text); line-height: 1.5; }
+.sidebar-muted { margin: 0; color: var(--muted); line-height: 1.55; }
+.tag-list--detail { line-height: 1.8; }
+.detail-empty { padding: 22px; color: var(--muted); line-height: 1.6; }
+.detail-empty p { margin-bottom: 0; }
+
+@media (max-width: 760px) {
+  .detail-topline { align-items: flex-start; flex-direction: column; }
+  .detail-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .detail-main { padding: 22px; }
+  .detail-meta-grid,
+  .example-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 980px) {
   .filter-form { grid-template-columns: repeat(3, 1fr); }

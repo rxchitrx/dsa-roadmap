@@ -1,9 +1,34 @@
+from urllib.parse import urlsplit
+
 from django.db.models import Q
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 
 from curriculum.models import Concept, Topic
 
 from .models import Problem
+
+
+def _safe_external_url(value: str) -> str:
+    """Return only absolute HTTP(S) URLs suitable for an external link."""
+
+    if not value or any(character.isspace() for character in value):
+        return ""
+
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return ""
+
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return ""
+
+    try:
+        if not parsed.hostname or parsed.username or parsed.password:
+            return ""
+    except ValueError:
+        return ""
+
+    return value
 
 
 def problems_index(request):
@@ -72,5 +97,37 @@ def problems_index(request):
                 or selected_concept
                 or selected_difficulty
             ),
+        },
+    )
+
+
+def problem_detail(request, slug):
+    """Render one active problem with its practice and source context."""
+
+    problem = get_object_or_404(
+        Problem.objects.select_related("concept", "concept__topic"),
+        slug=slug,
+        is_active=True,
+    )
+    concept = problem.concept
+    constraints = getattr(problem, "constraints", "")
+    complexity = getattr(problem, "expected_complexity", "") or getattr(
+        problem, "complexity", ""
+    )
+
+    # The current catalog stores complexity on the linked concept. Keep the
+    # page honest by using it only when the problem has no problem-specific
+    # value, and expose a stable context key for future catalog imports.
+    if not complexity and concept:
+        complexity = concept.complexity_notes
+
+    return render(
+        request,
+        "problems/detail.html",
+        {
+            "problem": problem,
+            "constraints": constraints,
+            "complexity": complexity,
+            "safe_source_url": _safe_external_url(problem.source_url),
         },
     )
