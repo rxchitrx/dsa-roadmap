@@ -1,6 +1,8 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 
 
 class Problem(models.Model):
@@ -123,6 +125,92 @@ class Problem(models.Model):
     @property
     def has_classification_warning(self) -> bool:
         return self.classification_warning_state is not None
+
+    @property
+    def active_snapshot(self):
+        """Return the source snapshot currently used by this Problem."""
+
+        if not self.pk:
+            return None
+        return self.snapshots.filter(is_active=True).order_by("-version", "-id").first()
+
+
+class ProblemSnapshot(models.Model):
+    """An immutable version of the catalog-facing Problem content.
+
+    Concept classifications and learner-owned practice data intentionally do
+    not belong here.  A snapshot only captures fields that can change when a
+    source catalog is refreshed, so historical runs can keep rendering the
+    content that was current when they happened.
+    """
+
+    problem = models.ForeignKey(
+        Problem,
+        on_delete=models.CASCADE,
+        related_name="snapshots",
+    )
+    version = models.PositiveIntegerField()
+    title = models.CharField(max_length=220)
+    slug = models.SlugField(max_length=240)
+    statement = models.TextField()
+    difficulty = models.CharField(
+        max_length=20,
+        choices=Problem.Difficulty.choices,
+        blank=True,
+    )
+    source_name = models.CharField(max_length=100, blank=True)
+    source_problem_id = models.CharField(max_length=100, blank=True)
+    source_url = models.URLField(blank=True)
+    is_paid_only = models.BooleanField(default=False)
+    examples = models.JSONField(default=list, blank=True)
+    tags = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    captured_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ("problem_id", "-version", "-id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("problem", "version"),
+                name="unique_problem_snapshot_version",
+            ),
+            models.UniqueConstraint(
+                condition=Q(is_active=True),
+                fields=("problem",),
+                name="one_active_problem_snapshot",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("problem", "-captured_at")),
+        ]
+
+    @classmethod
+    def fields_from_problem(cls, problem: Problem) -> dict:
+        """Copy only source-controlled fields from the active Problem."""
+
+        return {
+            "title": problem.title,
+            "slug": problem.slug,
+            "statement": problem.statement,
+            "difficulty": problem.difficulty,
+            "source_name": problem.source_name,
+            "source_problem_id": problem.source_problem_id,
+            "source_url": problem.source_url,
+            "is_paid_only": problem.is_paid_only,
+            "examples": problem.examples,
+            "tags": problem.tags,
+        }
+
+    def matches_problem(self, problem: Problem) -> bool:
+        """Whether this snapshot already represents the current catalog data."""
+
+        return all(
+            getattr(self, field_name) == value
+            for field_name, value in self.fields_from_problem(problem).items()
+        )
+
+    def __str__(self) -> str:
+        return f"{self.title} source snapshot v{self.version}"
 
 
 class CatalogSync(models.Model):

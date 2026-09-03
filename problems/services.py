@@ -4,10 +4,11 @@ from typing import TypeAlias
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Max
 
 from curriculum.models import Concept
 
-from .models import Problem, ProblemClassification
+from .models import Problem, ProblemClassification, ProblemSnapshot
 
 
 ClassificationTarget: TypeAlias = Concept | ProblemClassification
@@ -123,3 +124,46 @@ def classification_warning_state(problem: Problem) -> str | None:
     """Expose the warning state for presentation or analytics adapters."""
 
     return problem.classification_warning_state
+
+
+@transaction.atomic
+def ensure_problem_snapshot(problem: Problem) -> tuple[ProblemSnapshot, bool]:
+    """Return the active source snapshot, creating a version when needed.
+
+    The comparison is against the catalog-facing fields only.  Learner-owned
+    classifications can therefore change without creating a new source
+    version, while any source content change cleanly closes the old active
+    snapshot before opening the next one.
+    """
+
+    if not isinstance(problem, Problem):
+        raise TypeError("problem must be a Problem instance")
+    if not problem.pk:
+        raise ValueError("Save the Problem before creating a source snapshot.")
+
+    active = (
+        ProblemSnapshot.objects.select_for_update()
+        .filter(problem=problem, is_active=True)
+        .order_by("-version", "-id")
+        .first()
+    )
+    if active is not None and active.matches_problem(problem):
+        return active, False
+
+    latest_version = (
+        ProblemSnapshot.objects.filter(problem=problem).aggregate(
+            latest=Max("version")
+        )["latest"]
+        or 0
+    )
+    if active is not None:
+        active.is_active = False
+        active.save(update_fields=["is_active"])
+
+    snapshot = ProblemSnapshot.objects.create(
+        problem=problem,
+        version=latest_version + 1,
+        is_active=True,
+        **ProblemSnapshot.fields_from_problem(problem),
+    )
+    return snapshot, True

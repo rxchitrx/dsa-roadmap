@@ -9,6 +9,11 @@ class RunHistoryEntry(models.Model):
         on_delete=models.CASCADE,
         related_name="history_entry",
     )
+    problem_snapshot = models.ForeignKey(
+        "problems.ProblemSnapshot",
+        on_delete=models.PROTECT,
+        related_name="history_entries",
+    )
     code_snapshot = models.TextField()
     status = models.CharField(max_length=24)
     result_summary = models.TextField()
@@ -24,7 +29,7 @@ class RunHistoryEntry(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.practice_run.problem.title} run history ({self.get_status_display()})"
+        return f"{self.problem_snapshot.title} run history ({self.get_status_display()})"
 
     @property
     def status_label(self) -> str:
@@ -37,11 +42,17 @@ class RunHistoryEntry(models.Model):
         return f"{self.passed_tests} of {self.total_tests} tests passed"
 
     @classmethod
-    def snapshot_for(cls, practice_run):
-        """Build a stable snapshot without changing the PracticeRun record."""
+    def snapshot_for(cls, practice_run, *, problem_snapshot=None):
+        """Build a stable history entry without changing the PracticeRun."""
+
+        if problem_snapshot is None:
+            from problems.services import ensure_problem_snapshot
+
+            problem_snapshot, _created = ensure_problem_snapshot(practice_run.problem)
 
         return cls(
             practice_run=practice_run,
+            problem_snapshot=problem_snapshot,
             code_snapshot=practice_run.code,
             status=practice_run.status,
             result_summary=practice_run.summary,

@@ -22,6 +22,7 @@ from django.utils.text import slugify
 from curriculum.models import Concept
 
 from .models import CatalogSync, Problem, ProblemClassification
+from .services import ensure_problem_snapshot
 
 
 LEETCODE_SOURCE_NAME = "LeetCode"
@@ -470,6 +471,9 @@ def sync_catalog(
                         raise CatalogSyncError("The public catalog returned a malformed problem.")
                     item = normalize_catalog_problem(raw_item)
                     problem, created = _upsert_problem(item)
+                    # Capture the post-upsert source fields before the next
+                    # catalog refresh can change what a historical run sees.
+                    ensure_problem_snapshot(problem)
                     warning = _ensure_classification_warning(problem, item)
                     seen_source_ids.add(item.source_problem_id)
                     run.processed_items += 1

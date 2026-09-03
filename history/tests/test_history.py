@@ -1,3 +1,4 @@
+from collections.abc import Iterator, Mapping
 from datetime import timedelta
 
 import pytest
@@ -5,9 +6,32 @@ from django.urls import reverse
 from django.utils import timezone
 
 from practice.models import PracticeRun, ProblemDraft
+from problems.catalog_sync import sync_catalog
 from problems.models import Problem
 
 from history.models import RunHistoryEntry
+
+
+class FakeSource:
+    total = 1
+
+    def __init__(self, item):
+        self.item = item
+
+    def iter_batches(self) -> Iterator[tuple[Mapping, ...]]:
+        yield (self.item,)
+
+
+def catalog_problem(*, title, statement, title_slug):
+    return {
+        "title": title,
+        "titleSlug": title_slug,
+        "frontendQuestionId": "217",
+        "difficulty": "Easy",
+        "content": statement,
+        "topicTags": [],
+        "isPaidOnly": False,
+    }
 
 
 @pytest.fixture
@@ -88,6 +112,40 @@ def test_history_route_renders_result_and_code_snapshot(client, problem):
     assert "Submitted code snapshot" in body
     assert "len(nums) != len(set(nums))" in body
     assert reverse("practice:editor", kwargs={"slug": problem.slug}) in body
+
+
+@pytest.mark.django_db
+def test_history_read_uses_the_problem_snapshot_from_the_original_run(client, problem):
+    run = create_run(
+        problem,
+        code="def contains_duplicate(nums):\n    return True\n",
+    )
+    original_snapshot = run.history_entry.problem_snapshot
+
+    sync_catalog(
+        source=FakeSource(
+            catalog_problem(
+                title="Contains Duplicate · Revised",
+                title_slug="contains-duplicate-revised",
+                statement="The source statement has changed since this run.",
+            )
+        )
+    )
+
+    run.history_entry.refresh_from_db()
+    response = client.get(reverse("history:index"))
+    body = response.content.decode()
+
+    assert response.status_code == 200
+    assert run.history_entry.problem_snapshot_id == original_snapshot.pk
+    assert run.history_entry.problem_snapshot.title == "Contains Duplicate"
+    assert run.history_entry.problem_snapshot.statement == (
+        "Return whether any value appears more than once."
+    )
+    assert "Return whether any value appears more than once." in body
+    assert "The source statement has changed since this run." not in body
+    assert "Source snapshot v1" in body
+    assert "Contains Duplicate" in body
 
 
 @pytest.mark.django_db

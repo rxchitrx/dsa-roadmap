@@ -46,15 +46,24 @@
             <article class="history-card" data-testid="history-entry">
               <header class="history-card-header">
                 <div>
-                  <h3><a class="problem-link" href="{% url 'problems:detail' slug=entry.practice_run.problem.slug %}">{{ entry.practice_run.problem.title }}</a></h3>
+                  <h3><a class="problem-link" href="{% url 'problems:detail' slug=entry.practice_run.problem.slug %}">{{ entry.problem_snapshot.title }}</a></h3>
                   <div class="history-meta">
                     <span class="status status--{{ entry.status }}">{{ entry.status_label }}</span>
-                    {% if entry.practice_run.problem.source_name %}<span>{{ entry.practice_run.problem.source_name }}{% if entry.practice_run.problem.source_problem_id %} · {{ entry.practice_run.problem.source_problem_id }}{% endif %}</span>{% endif %}
+                    <span data-testid="historical-problem-snapshot">Source snapshot v{{ entry.problem_snapshot.version }}</span>
+                    {% if entry.problem_snapshot.source_name %}<span>{{ entry.problem_snapshot.source_name }}{% if entry.problem_snapshot.source_problem_id %} · {{ entry.problem_snapshot.source_problem_id }}{% endif %}</span>{% endif %}
                   </div>
                   <p class="result-summary">{{ entry.result_summary }}</p>
                 </div>
                 <time class="timestamp" datetime="{{ entry.captured_at|date:'c' }}">{{ entry.captured_at|date:"M j, Y · H:i" }}</time>
               </header>
+              <section class="snapshot-section" aria-label="Problem statement snapshot">
+                <p class="snapshot-label">Problem statement at run time</p>
+                {% if entry.problem_snapshot.statement %}
+                  <p class="statement">{{ entry.problem_snapshot.statement }}</p>
+                {% else %}
+                  <p class="missing-field">The source statement was empty at run time.</p>
+                {% endif %}
+              </section>
               <section class="snapshot-section" aria-label="Code snapshot">
                 <p class="snapshot-label">Submitted code snapshot</p>
                 <pre class="code-snapshot"><code>{{ entry.code_snapshot }}</code></pre>

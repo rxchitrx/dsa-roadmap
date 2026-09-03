@@ -139,6 +139,9 @@
                 <h3><a class="problem-card-link" href="{% url 'problems:detail' slug=problem.slug %}">{{ problem.title }}</a></h3>
                 <p class="problem-statement">{{ problem.statement }}</p>
                 <div class="problem-card-footer">
+                  {% if problem.active_snapshot %}
+                    <span class="snapshot-label">Source v{{ problem.active_snapshot.version }}</span>
+                  {% endif %}
                   {% if problem.concept %}
                     <span class="concept-path">{{ problem.concept.topic.name }} <span aria-hidden="true">/</span> {{ problem.concept.name }}</span>
                   {% else %}

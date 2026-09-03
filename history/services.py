@@ -28,7 +28,7 @@ def ensure_history_entries(runs):
 
     return list(
         RunHistoryEntry.objects.filter(practice_run_id__in=run_ids)
-        .select_related("practice_run__problem")
+        .select_related("practice_run__problem", "problem_snapshot")
         .order_by("-captured_at", "-id")
     )
 

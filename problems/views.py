@@ -211,6 +211,7 @@ def _problem_detail_context(problem, *, classification_form=None):
 
     return {
         "problem": problem,
+        "active_snapshot": problem.active_snapshot,
         "constraints": constraints,
         "complexity": complexity,
         "safe_source_url": _safe_external_url(problem.source_url),

@@ -28,6 +28,11 @@
         </div>
         <p class="eyebrow">DSA ROADMAP / PRACTICE PROBLEM</p>
         <h1>{{ problem.title }}</h1>
+        {% if active_snapshot %}
+          <p class="source-version" data-testid="active-problem-snapshot">
+            Active source snapshot v{{ active_snapshot.version }} · captured {{ active_snapshot.captured_at|date:"M j, Y" }}
+          </p>
+        {% endif %}
         {% if safe_source_url %}
           <a class="source-link" href="{{ safe_source_url }}" target="_blank" rel="noopener noreferrer nofollow">
             Open {{ problem.source_name|default:"external source" }}{% if problem.source_problem_id %} #{{ problem.source_problem_id }}{% endif %} ↗
