@@ -19,9 +19,20 @@
         {% endfor %}
       </ol>
     {% else %}
-      <p class="problem-pool-empty" data-testid="problem-pool-empty">
-        No eligible Problems are available yet. Sync or classify more Problems to fill this block.
-      </p>
+      <div class="problem-pool-empty" data-testid="problem-pool-empty">
+        <p><strong>No problem is assigned yet.</strong> Your local shelf has {{ active_problem_count }} active problem{{ active_problem_count|pluralize }}.</p>
+        <p class="problem-pool-explanation">
+          {% if catalog_sync and catalog_sync.status == 'succeeded' %}
+            The public LeetCode catalog was last synced on {{ catalog_sync.finished_at|date:'M j, Y' }}. This block still needs a problem mapped to its learning concept.
+          {% else %}
+            The full public LeetCode catalog has not been synced into this shelf yet. You can import it or choose from the local shelf now.
+          {% endif %}
+        </p>
+        <div class="problem-pool-actions">
+          <a class="quiet-action" href="{% url 'problems:index' %}{% if block.assigned_concept %}?concept={{ block.assigned_concept.slug }}{% endif %}">Browse problem shelf <span aria-hidden="true">→</span></a>
+          <a class="quiet-action" href="{% url 'problems:index' %}#catalog-sync">Sync catalog <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
     {% endif %}
   </section>
 {% endif %}

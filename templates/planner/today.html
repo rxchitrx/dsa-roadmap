@@ -19,23 +19,31 @@
             <h1>Today</h1>
             <time datetime="{{ today|date:'Y-m-d' }}">{{ today|date:'l, F j, Y' }}</time>
           </div>
-          <nav class="summary-link" aria-label="Planning navigation">
-            <a href="{% url 'planner:weekly_summary' %}">Weekly summary →</a>
-            <a href="{% url 'planner:progress_analytics' %}">Analytics →</a>
-            <a href="{% url 'planner:next_week_plan' %}">Plan next week →</a>
-            <a href="{% url 'planner:backup_center' %}">Backup →</a>
-            <a href="/curriculum/start-here/" data-testid="start-here-link">Start here →</a>
-          </nav>
+          <div class="today-header-actions">
+            <a class="primary-button curriculum-button" href="/curriculum/" data-testid="curriculum-link">
+              Main curriculum <span aria-hidden="true">↗</span>
+            </a>
+            <details class="workspace-menu">
+              <summary>More</summary>
+              <nav aria-label="Workspace links">
+                <a href="{% url 'planner:weekly_summary' %}">Weekly summary</a>
+                <a href="{% url 'planner:progress_analytics' %}">Analytics</a>
+                <a href="{% url 'planner:next_week_plan' %}">Plan next week</a>
+                <a href="{% url 'planner:backup_center' %}">Backup</a>
+                <a href="/curriculum/start-here/" data-testid="start-here-link">Start here</a>
+              </nav>
+            </details>
+          </div>
         </div>
       </header>
 
-      <section class="start-here-prompt" aria-labelledby="start-here-heading" data-testid="start-here-entrypoint">
-        <div>
-          <p class="eyebrow">NEW TO THIS ROADMAP?</p>
-          <h2 id="start-here-heading">Build your runway first.</h2>
-          <p>Use the researched first-two-weeks path to brush up Python, complexity, invariants, debugging, recursion, and discrete foundations before the main DSA sequence.</p>
+      <section class="start-here-strip" aria-labelledby="start-here-heading" data-testid="start-here-entrypoint">
+        <div class="start-here-copy">
+          <p class="eyebrow">FIRST TIME HERE?</p>
+          <h2 id="start-here-heading">Start with the 14-day runway.</h2>
+          <p>Brush up Python, complexity, debugging, recursion, and discrete foundations before the main sequence.</p>
         </div>
-        <a class="primary-button" href="/curriculum/start-here/">Open first two weeks →</a>
+        <a class="quiet-action" href="/curriculum/start-here/">Open Start Here <span aria-hidden="true">→</span></a>
       </section>
 
       <section class="plan-section" aria-labelledby="plan-heading">
@@ -45,7 +53,8 @@
         <div class="section-heading-row">
           <div class="section-heading">
             <p class="eyebrow">YOUR NEXT STEP</p>
-            <h2 id="plan-heading">Study plan</h2>
+            <h2 id="plan-heading">Today’s sequence</h2>
+            <p class="section-lede">One action at a time. Finish the highlighted step, then move down the list.</p>
           </div>
           {% if not routine_generated %}
             <div class="plan-actions">
@@ -98,49 +107,86 @@
             </p>
           </div>
         {% elif study_blocks %}
-          <div class="study-block-list">
-            {% for block in study_blocks %}
-              <article class="study-block" data-testid="study-block">
-                <div class="study-block-copy">
-                  {% if block.is_carried_forward %}
-                    <p class="block-label carry-forward-label" data-testid="carry-forward-label">
-                      Carried forward from {{ block.carried_from.date|date:'M j' }}
-                    </p>
-                  {% else %}
-                    <p class="block-label">DSA study block {{ forloop.counter }}</p>
-                  {% endif %}
-                  <h3 data-testid="study-block-title">{{ block.title }}</h3>
-                  {% if block.assigned_concept %}
-                    <p class="assigned-concept" data-testid="assigned-concept">
-                      <span class="assigned-concept-label">
-                        {% if block.concept_assignment_source == 'manual' %}Selected concept{% else %}Recommended concept{% endif %}
-                      </span>
-                      <a href="{% url 'curriculum:concept_detail' concept_slug=block.assigned_concept.slug %}">
-                        {{ block.assigned_concept.name }}
-                      </a>
-                    </p>
-                  {% elif block.is_concept_learning_block %}
-                    <p class="unassigned-concept" data-testid="unassigned-concept">
-                      No concept assigned yet.
-                    </p>
-                  {% endif %}
-                  {% include "planner/_problem_assignments.html" with block=block %}
-                </div>
+          {% if next_step_block %}
+            <article class="study-block next-step-card" data-testid="study-block">
+              <div class="next-step-topline">
+                <p class="block-label">Step {{ next_step_block.sequence_number }} of {{ study_blocks|length }}</p>
                 <div class="study-block-meta">
-                  <span class="duration" data-testid="study-block-duration">
-                    {{ block.planned_minutes }} min planned
-                  </span>
-                  <span
-                    class="status status--{{ block.status }}"
-                    data-testid="study-block-status"
-                  >
-                    {{ block.get_status_display }}
-                  </span>
+                  <span class="duration" data-testid="study-block-duration">{{ next_step_block.planned_minutes }} min planned</span>
+                  <span class="status status--{{ next_step_block.status }}" data-testid="study-block-status">{{ next_step_block.get_status_display }}</span>
                 </div>
-                {% include "planner/_timer_controls.html" with block=block %}
-              </article>
-            {% endfor %}
-          </div>
+              </div>
+              <div class="study-block-copy">
+                {% if next_step_block.is_carried_forward %}
+                  <p class="carry-forward-label" data-testid="carry-forward-label">Carried forward from {{ next_step_block.carried_from.date|date:'M j' }}</p>
+                {% endif %}
+                <h3 data-testid="study-block-title">{{ next_step_block.title }}</h3>
+                {% if next_step_block.assigned_concept %}
+                  <p class="assigned-concept" data-testid="assigned-concept">
+                    <span class="assigned-concept-label">{% if next_step_block.concept_assignment_source == 'manual' %}Selected concept{% else %}Recommended concept{% endif %}</span>
+                    <a href="{% url 'curriculum:concept_detail' concept_slug=next_step_block.assigned_concept.slug %}">{{ next_step_block.assigned_concept.name }}</a>
+                  </p>
+                {% elif next_step_block.is_concept_learning_block %}
+                  <p class="unassigned-concept" data-testid="unassigned-concept">No concept assigned yet.</p>
+                {% endif %}
+                {% include "planner/_problem_assignments.html" with block=next_step_block %}
+              </div>
+              {% include "planner/_timer_controls.html" with block=next_step_block %}
+            </article>
+          {% else %}
+            <div class="done-state" data-testid="today-done">
+              <p class="eyebrow">SEQUENCE COMPLETE</p>
+              <h3>You’ve finished today’s plan.</h3>
+              <p>Nice work. Use the curriculum to keep learning, or come back tomorrow for the next sequence.</p>
+            </div>
+          {% endif %}
+
+          {% if upcoming_blocks %}
+            <section class="up-next-section" aria-labelledby="up-next-heading" data-testid="up-next-list">
+              <div class="subsection-heading">
+                <p class="eyebrow">AFTER THIS</p>
+                <h3 id="up-next-heading">Up next, in order</h3>
+              </div>
+              <ol class="ordered-step-list">
+                {% for block in upcoming_blocks %}
+                  <li class="ordered-step" data-testid="up-next-step">
+                    <span class="step-number">{{ block.sequence_number|stringformat:'02d' }}</span>
+                    <div class="ordered-step-copy">
+                      <h4>{{ block.title }}</h4>
+                      <p>{{ block.planned_minutes }} min{% if block.is_problem_solve_block and block.problem_assignments.all %} · {{ block.problem_assignments.all|length }} problem{{ block.problem_assignments.all|length|pluralize }} queued{% endif %}</p>
+                      {% if block.assigned_concept %}
+                        <p class="ordered-step-context assigned-concept" data-testid="assigned-concept">
+                          <span class="assigned-concept-label">Concept</span>
+                          <a href="{% url 'curriculum:concept_detail' concept_slug=block.assigned_concept.slug %}">{{ block.assigned_concept.name }}</a>
+                        </p>
+                      {% endif %}
+                      {% if block.is_problem_solve_block and block.problem_assignments.all %}
+                        {% include "planner/_problem_assignments.html" with block=block %}
+                      {% elif block.is_problem_solve_block %}
+                        <p class="ordered-step-note">Needs a problem · {{ active_problem_count }} on shelf · <a href="{% url 'problems:index' %}">browse shelf →</a></p>
+                      {% endif %}
+                    </div>
+                    <span class="status status--{{ block.status }}">{{ block.get_status_display }}</span>
+                  </li>
+                {% endfor %}
+              </ol>
+            </section>
+          {% endif %}
+
+          {% if completed_blocks %}
+            <details class="completed-section" data-testid="completed-today">
+              <summary>Completed earlier <span>{{ completed_blocks|length }}</span></summary>
+              <ol class="completed-step-list">
+                {% for block in completed_blocks %}
+                  <li class="completed-step">
+                    <span class="step-number">{{ block.sequence_number|stringformat:'02d' }}</span>
+                    <span>{{ block.title }}</span>
+                    <span class="status status--completed">Completed</span>
+                  </li>
+                {% endfor %}
+              </ol>
+            </details>
+          {% endif %}
         {% else %}
           <div class="empty-state" data-testid="today-empty">
             <p class="empty-title">Nothing planned for today.</p>
@@ -149,6 +195,39 @@
             </p>
           </div>
         {% endif %}
+      </section>
+
+      <section class="week-calendar" aria-labelledby="calendar-heading" data-testid="week-calendar">
+        <div class="calendar-heading">
+          <div>
+            <p class="eyebrow">THIS WEEK</p>
+            <h2 id="calendar-heading">Your study rhythm</h2>
+          </div>
+          <span class="calendar-range">{{ week_calendar.week_start|date:'M j' }}–{{ week_calendar.week_end|date:'M j' }}</span>
+        </div>
+        <div class="calendar-days">
+          {% for day in week_calendar.days %}
+            <a
+              class="calendar-day{% if day.is_selected %} calendar-day--selected{% endif %}{% if day.is_rest_day %} calendar-day--rest{% endif %}"
+              data-testid="calendar-day"
+              href="{% url 'planner:today' %}?date={{ day.date|date:'Y-m-d' }}"
+              {% if day.is_selected %}aria-current="date"{% endif %}
+            >
+              <span class="calendar-day-topline">
+                <span>{{ day.weekday }}</span>
+                <strong>{{ day.day_number }}</strong>
+              </span>
+              {% if day.is_rest_day %}
+                <span class="calendar-day-detail">Rest day</span>
+              {% elif day.block_count %}
+                <span class="calendar-day-detail">{{ day.completed_count }}/{{ day.block_count }} done</span>
+                <span class="calendar-day-next">{{ day.next_title|truncatechars:25 }}</span>
+              {% else %}
+                <span class="calendar-day-detail">Open</span>
+              {% endif %}
+            </a>
+          {% endfor %}
+        </div>
       </section>
 
       {% if is_weekday %}

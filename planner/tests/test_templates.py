@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from django.urls import reverse
 from django.utils import timezone
@@ -47,3 +49,53 @@ def test_today_ui_shows_empty_state_without_a_study_block(client):
     assert 'data-testid="today-empty"' in html
     assert "Nothing planned for today." in html
     assert 'data-testid="study-block"' not in html
+
+
+@pytest.mark.django_db
+def test_today_ui_prioritizes_one_step_and_exposes_week_calendar(client):
+    today = timezone.localdate()
+    StudyBlock.objects.create(
+        date=today,
+        title="First focused step",
+        planned_minutes=20,
+    )
+    StudyBlock.objects.create(
+        date=today,
+        title="Later focused step",
+        planned_minutes=30,
+    )
+
+    response = client.get(reverse("planner:today"))
+    html = response.content.decode()
+
+    assert response.context["next_step_block"].title == "First focused step"
+    assert html.count('data-testid="calendar-day"') == 7
+    assert 'data-testid="curriculum-link"' in html
+    assert "Planning navigation" not in html
+    assert "Up next, in order" in html
+    assert 'data-testid="up-next-step"' in html
+
+
+@pytest.mark.django_db
+def test_today_ui_can_open_a_selected_calendar_date(client):
+    selected_date = timezone.localdate() + timedelta(days=1)
+    StudyBlock.objects.create(
+        date=selected_date,
+        title="A future planned step",
+        planned_minutes=25,
+    )
+
+    response = client.get(
+        reverse("planner:today"),
+        {"date": selected_date.isoformat()},
+    )
+
+    assert response.status_code == 200
+    assert response.context["today"] == selected_date
+    assert "A future planned step" in response.content.decode()
+
+
+def test_today_ui_rejects_an_invalid_calendar_date(client):
+    response = client.get(reverse("planner:today"), {"date": "not-a-date"})
+
+    assert response.status_code == 400

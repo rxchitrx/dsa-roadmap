@@ -19,7 +19,7 @@
         </p>
       </header>
 
-      <section class="catalog-sync" aria-labelledby="sync-heading" data-testid="catalog-sync-status" data-sync-state="{% if latest_sync %}{{ latest_sync.status }}{% else %}never-run{% endif %}">
+      <section id="catalog-sync" class="catalog-sync" aria-labelledby="sync-heading" data-testid="catalog-sync-status" data-sync-state="{% if latest_sync %}{{ latest_sync.status }}{% else %}never-run{% endif %}">
         <div>
           <p class="eyebrow">PUBLIC CATALOG</p>
           <h2 id="sync-heading">LeetCode catalog</h2>

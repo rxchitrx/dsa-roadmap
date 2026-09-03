@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
+from problems.models import CatalogSync, Problem
 from reviews.services import due_review_queue
 
 from .forms import StopWorkSessionForm, StudyBlockEditForm
@@ -45,8 +46,6 @@ from .next_week import (
     generate_next_week_plan,
     save_next_week_plan,
 )
-
-
 def _decorate_with_timer_sessions(study_blocks):
     """Attach the latest persisted timer run to each block for template use."""
 
@@ -77,6 +76,53 @@ def _decorate_with_timer_sessions(study_blocks):
     return study_blocks
 
 
+def _week_calendar(today_date):
+    """Build the compact seven-day planner strip shown on Today."""
+
+    week_start = week_start_for(today_date)
+    week_end = week_start + timedelta(days=6)
+    blocks_by_date = {}
+    for block in StudyBlock.objects.filter(
+        date__range=(week_start, week_end),
+    ).order_by("date", "position", "id"):
+        blocks_by_date.setdefault(block.date, []).append(block)
+
+    rest_dates = set(
+        RestDay.objects.filter(date__range=(week_start, week_end)).values_list(
+            "date", flat=True
+        )
+    )
+    days = []
+    for offset in range(7):
+        day_date = week_start + timedelta(days=offset)
+        day_blocks = blocks_by_date.get(day_date, [])
+        pending_blocks = [
+            block
+            for block in day_blocks
+            if block.status != StudyBlock.Status.COMPLETED
+        ]
+        days.append(
+            {
+                "date": day_date,
+                "weekday": day_date.strftime("%a"),
+                "day_number": day_date.day,
+                "is_selected": day_date == today_date,
+                "is_rest_day": day_date in rest_dates,
+                "block_count": len(day_blocks),
+                "completed_count": len(day_blocks) - len(pending_blocks),
+                "planned_minutes": sum(
+                    block.planned_minutes for block in day_blocks
+                ),
+                "next_title": pending_blocks[0].title if pending_blocks else "",
+            }
+        )
+    return {
+        "week_start": week_start,
+        "week_end": week_end,
+        "days": days,
+    }
+
+
 def _today_context(today_date=None, timer_error=None):
     today_date = today_date or timezone.localdate()
     carry_forward_unfinished_blocks(today_date)
@@ -92,15 +138,30 @@ def _today_context(today_date=None, timer_error=None):
     study_blocks = _decorate_with_timer_sessions(
         [] if rest_day else all_study_blocks
     )
-    study_block = (
-        study_blocks[0] if study_blocks else None
-    )
+    for sequence_number, block in enumerate(study_blocks, start=1):
+        block.sequence_number = sequence_number
+    pending_blocks = [
+        block
+        for block in study_blocks
+        if block.status != StudyBlock.Status.COMPLETED
+    ]
+    completed_blocks = [
+        block
+        for block in study_blocks
+        if block.status == StudyBlock.Status.COMPLETED
+    ]
+    study_block = study_blocks[0] if study_blocks else None
+    next_step_block = pending_blocks[0] if pending_blocks else None
+    upcoming_blocks = pending_blocks[1:] if next_step_block else []
     is_weekday = today_date.weekday() < 5
     is_sunday = today_date.weekday() == 6
     return {
         "today": today_date,
         "study_block": study_block,
         "study_blocks": study_blocks,
+        "next_step_block": next_step_block,
+        "upcoming_blocks": upcoming_blocks,
+        "completed_blocks": completed_blocks,
         "rest_day": rest_day,
         "suppressed_block_count": all_study_blocks.count() if rest_day else 0,
         "routine_generated": is_weekly_routine_complete(today_date),
@@ -108,11 +169,18 @@ def _today_context(today_date=None, timer_error=None):
         "is_weekday": is_weekday,
         "is_sunday": is_sunday,
         "due_reviews": due_review_queue() if is_weekday else [],
+        "week_calendar": _week_calendar(today_date),
+        "active_problem_count": Problem.objects.filter(is_active=True).count(),
+        "catalog_sync": CatalogSync.objects.first(),
     }
 
 
 def today(request):
-    return render(request, "planner/today.html", _today_context())
+    raw_date = request.GET.get("date")
+    selected_date = _parse_day_date(raw_date) if raw_date else timezone.localdate()
+    if raw_date and selected_date is None:
+        return HttpResponseBadRequest("Use a valid date in YYYY-MM-DD format.")
+    return render(request, "planner/today.html", _today_context(selected_date))
 
 
 @require_GET
