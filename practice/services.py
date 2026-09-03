@@ -14,12 +14,16 @@ from django.db import transaction
 
 from problems.models import Problem
 
+from .models import CustomTestCase
 from .models import ProblemDraft
 from .models import PracticeRun
 
 
 MAX_SUBMISSION_LENGTH = 20_000
 RUN_TIMEOUT_SECONDS = 1.5
+MAX_CUSTOM_TEST_CASES = 20
+MAX_CUSTOM_LABEL_LENGTH = 120
+MAX_CUSTOM_JSON_LENGTH = 10_000
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,8 @@ class VisibleTest:
     expected: object
     kwargs: dict | None = None
     expected_args: tuple | None = None
+    kind: str = "default"
+    case_id: int | None = None
 
 
 VISIBLE_TESTS = {
@@ -115,6 +121,306 @@ def visible_tests_for(problem: Problem) -> tuple[VisibleTest, ...]:
     )
 
 
+@dataclass(frozen=True)
+class ValidatedCustomTest:
+    """A validated custom case, before or after it is persisted."""
+
+    case_id: int | None
+    label: str
+    input_data: list
+    expected_output: object
+
+
+class CustomTestValidationError(ValueError):
+    """Raised when custom cases cannot be safely saved or executed."""
+
+    def __init__(self, errors: list[dict]):
+        super().__init__("Custom test cases need attention before they can run.")
+        self.errors = errors
+
+
+def _custom_error(index, field, message, case_id=None) -> dict:
+    return {
+        "index": index,
+        "field": field,
+        "message": message,
+        "id": case_id,
+    }
+
+
+def _json_size(value: object) -> int:
+    try:
+        return len(json.dumps(value, allow_nan=False))
+    except (TypeError, ValueError):
+        return -1
+
+
+def validate_custom_test_payloads(
+    problem: Problem,
+    payload: object,
+) -> list[ValidatedCustomTest]:
+    """Validate the complete editable custom-test list before any mutation."""
+
+    if not isinstance(payload, list):
+        raise CustomTestValidationError(
+            [_custom_error(None, "cases", "Custom tests must be a JSON array.")]
+        )
+    if len(payload) > MAX_CUSTOM_TEST_CASES:
+        raise CustomTestValidationError(
+            [
+                _custom_error(
+                    None,
+                    "cases",
+                    f"Keep the custom test list to {MAX_CUSTOM_TEST_CASES} cases or fewer.",
+                )
+            ]
+        )
+
+    existing_ids = set(
+        CustomTestCase.objects.filter(problem=problem).values_list("id", flat=True)
+    )
+    seen_ids = set()
+    errors = []
+    validated = []
+
+    for index, raw_case in enumerate(payload):
+        if not isinstance(raw_case, dict):
+            errors.append(
+                _custom_error(index, "case", "Each custom test must be an object.")
+            )
+            continue
+
+        raw_id = raw_case.get("id")
+        case_id = None
+        if raw_id is not None:
+            if isinstance(raw_id, bool):
+                errors.append(
+                    _custom_error(index, "id", "Case id must be a number.", raw_id)
+                )
+            else:
+                try:
+                    case_id = int(raw_id)
+                except (TypeError, ValueError):
+                    errors.append(
+                        _custom_error(index, "id", "Case id must be a number.", raw_id)
+                    )
+                else:
+                    if case_id <= 0:
+                        errors.append(
+                            _custom_error(index, "id", "Case id must be positive.", raw_id)
+                        )
+                    elif case_id in seen_ids:
+                        errors.append(
+                            _custom_error(index, "id", "A case cannot appear twice.", raw_id)
+                        )
+                    elif case_id not in existing_ids:
+                        errors.append(
+                            _custom_error(
+                                index,
+                                "id",
+                                "This custom test does not belong to the current Problem.",
+                                raw_id,
+                            )
+                        )
+                    else:
+                        seen_ids.add(case_id)
+
+        raw_label = raw_case.get("label")
+        label = raw_label.strip() if isinstance(raw_label, str) else ""
+        if not label:
+            errors.append(
+                _custom_error(index, "label", "Add a short name for this test.", raw_id)
+            )
+        elif len(label) > MAX_CUSTOM_LABEL_LENGTH:
+            errors.append(
+                _custom_error(
+                    index,
+                    "label",
+                    f"Keep the test name to {MAX_CUSTOM_LABEL_LENGTH} characters or fewer.",
+                    raw_id,
+                )
+            )
+
+        input_key = "input_data" if "input_data" in raw_case else "input"
+        if input_key not in raw_case:
+            errors.append(
+                _custom_error(
+                    index,
+                    "input",
+                    "Input must be a JSON array of positional arguments.",
+                    raw_id,
+                )
+            )
+            input_data = None
+        else:
+            input_data = raw_case[input_key]
+            if not isinstance(input_data, list):
+                errors.append(
+                    _custom_error(
+                        index,
+                        "input",
+                        "Input must be a JSON array of positional arguments.",
+                        raw_id,
+                    )
+                )
+            elif _json_size(input_data) < 0:
+                errors.append(
+                    _custom_error(
+                        index,
+                        "input",
+                        "Input must contain only JSON values.",
+                        raw_id,
+                    )
+                )
+            elif _json_size(input_data) > MAX_CUSTOM_JSON_LENGTH:
+                errors.append(
+                    _custom_error(
+                        index,
+                        "input",
+                        f"Keep input to {MAX_CUSTOM_JSON_LENGTH:,} JSON characters or fewer.",
+                        raw_id,
+                    )
+                )
+
+        expected_key = (
+            "expected_output" if "expected_output" in raw_case else "expected"
+        )
+        if expected_key not in raw_case:
+            errors.append(
+                _custom_error(
+                    index,
+                    "expected",
+                    "Expected output is required; null is allowed when it is the answer.",
+                    raw_id,
+                )
+            )
+            expected_output = None
+        else:
+            expected_output = raw_case[expected_key]
+            if _json_size(expected_output) < 0:
+                errors.append(
+                    _custom_error(
+                        index,
+                        "expected",
+                        "Expected output must be a JSON value.",
+                        raw_id,
+                    )
+                )
+            elif _json_size(expected_output) > MAX_CUSTOM_JSON_LENGTH:
+                errors.append(
+                    _custom_error(
+                        index,
+                        "expected",
+                        f"Keep expected output to {MAX_CUSTOM_JSON_LENGTH:,} JSON characters or fewer.",
+                        raw_id,
+                    )
+                )
+
+        if (
+            label
+            and len(label) <= MAX_CUSTOM_LABEL_LENGTH
+            and isinstance(input_data, list)
+            and _json_size(input_data) >= 0
+            and _json_size(input_data) <= MAX_CUSTOM_JSON_LENGTH
+            and expected_key in raw_case
+            and _json_size(expected_output) >= 0
+            and _json_size(expected_output) <= MAX_CUSTOM_JSON_LENGTH
+            and (case_id is None or case_id in existing_ids)
+        ):
+            validated.append(
+                ValidatedCustomTest(
+                    case_id=case_id,
+                    label=label,
+                    input_data=copy.deepcopy(input_data),
+                    expected_output=copy.deepcopy(expected_output),
+                )
+            )
+
+    if errors:
+        raise CustomTestValidationError(errors)
+    return validated
+
+
+@transaction.atomic
+def save_custom_tests(
+    problem: Problem,
+    payload: object,
+) -> tuple[CustomTestCase, ...]:
+    """Replace the learner's ordered custom-test list after full validation."""
+
+    validated = validate_custom_test_payloads(problem, payload)
+    existing = {
+        case.pk: case
+        for case in CustomTestCase.objects.select_for_update().filter(problem=problem)
+    }
+    retained_ids = set()
+
+    for position, case_data in enumerate(validated):
+        if case_data.case_id is None:
+            case = CustomTestCase.objects.create(
+                problem=problem,
+                label=case_data.label,
+                input_data=case_data.input_data,
+                expected_output=case_data.expected_output,
+                position=position,
+            )
+        else:
+            case = existing[case_data.case_id]
+            case.label = case_data.label
+            case.input_data = case_data.input_data
+            case.expected_output = case_data.expected_output
+            case.position = position
+            case.save(
+                update_fields=(
+                    "label",
+                    "input_data",
+                    "expected_output",
+                    "position",
+                    "updated_at",
+                )
+            )
+        retained_ids.add(case.pk)
+
+    CustomTestCase.objects.filter(problem=problem).exclude(
+        pk__in=retained_ids
+    ).delete()
+    return tuple(
+        CustomTestCase.objects.filter(problem=problem).order_by("position", "id")
+    )
+
+
+def custom_visible_tests_for(
+    problem: Problem,
+    custom_cases=None,
+) -> tuple[VisibleTest, ...]:
+    """Adapt saved or already-validated custom cases to the runner contract."""
+
+    if custom_cases is None:
+        custom_cases = CustomTestCase.objects.filter(problem=problem).order_by(
+            "position", "id"
+        )
+
+    def value(case, key, model_key=None):
+        if isinstance(case, dict):
+            return case.get(key)
+        return getattr(case, model_key or key)
+
+    return tuple(
+        VisibleTest(
+            label=f"Custom · {value(case, 'label')}",
+            args=tuple(copy.deepcopy(value(case, "input_data"))),
+            expected=copy.deepcopy(value(case, "expected_output")),
+            kind="custom",
+            case_id=(
+                value(case, "id")
+                if isinstance(case, dict)
+                else getattr(case, "pk", None) or case.case_id
+            ),
+        )
+        for case in custom_cases
+    )
+
+
 def function_name_for(problem: Problem) -> str:
     """Extract the callable name from the Problem-specific starter signature."""
 
@@ -154,6 +460,8 @@ def _validate_submission(code: str) -> None:
 def _test_payload(test: VisibleTest) -> dict:
     payload = {
         "label": test.label,
+        "kind": test.kind,
+        "case_id": test.case_id,
         "args": copy.deepcopy(list(test.args)),
         "kwargs": copy.deepcopy(test.kwargs or {}),
         "expected": copy.deepcopy(test.expected),
@@ -283,6 +591,7 @@ def _main():
 
     details = []
     passed = 0
+    status = "passed"
     for index, case in enumerate(request["tests"], start=1):
         args = case["args"]
         kwargs = case["kwargs"]
@@ -298,6 +607,8 @@ def _main():
             )
             detail = {
                 "label": case["label"],
+                "kind": case.get("kind", "default"),
+                "case_id": case.get("case_id"),
                 "passed": passed_case,
                 "expected": expected,
                 "actual": actual,
@@ -307,45 +618,38 @@ def _main():
                 detail["actual_args"] = actual_args
             details.append(detail)
             if not passed_case:
-                _emit({
-                    "status": "assertion_failure",
-                    "passed_tests": passed,
-                    "message": f"Visible test {index} did not match the expected result.",
-                    "details": details,
-                })
-                return
-            passed += 1
+                if status == "passed":
+                    status = "assertion_failure"
+            else:
+                passed += 1
         except AssertionError as error:
+            status = "assertion_failure"
             details.append({
                 "label": case["label"],
+                "kind": case.get("kind", "default"),
+                "case_id": case.get("case_id"),
                 "passed": False,
                 "message": _message(error),
             })
-            _emit({
-                "status": "assertion_failure",
-                "passed_tests": passed,
-                "message": f"Visible test {index} raised an assertion.",
-                "details": details,
-            })
-            return
         except BaseException as error:
+            if status == "passed":
+                status = "runtime_error"
             details.append({
                 "label": case["label"],
+                "kind": case.get("kind", "default"),
+                "case_id": case.get("case_id"),
                 "passed": False,
                 "message": _message(error),
             })
-            _emit({
-                "status": "runtime_error",
-                "passed_tests": passed,
-                "message": f"Visible test {index} raised an error.",
-                "details": details,
-            })
-            return
 
+    if status == "passed":
+        message = "Every visible test passed."
+    else:
+        message = "Review the highlighted visible tests and try again."
     _emit({
-        "status": "passed",
+        "status": status,
         "passed_tests": passed,
-        "message": "Every visible test passed.",
+        "message": message,
         "details": details,
     })
 
@@ -454,10 +758,56 @@ def _run_in_subprocess(problem: Problem, code: str, tests: tuple[VisibleTest, ..
     )
 
 
-def run_visible_tests(problem: Problem, *, code: str) -> PracticeRun:
-    """Execute and persist one bounded run without mutating the draft."""
+def run_visible_tests(
+    problem: Problem,
+    *,
+    code: str,
+    custom_cases=None,
+    custom_tests=None,
+) -> PracticeRun:
+    """Execute and persist one bounded run with defaults and custom cases."""
 
-    tests = visible_tests_for(problem)
+    if custom_cases is not None and custom_tests is not None:
+        raise ValueError("Pass custom_cases or custom_tests, not both.")
+    if custom_tests is not None:
+        custom_cases = custom_tests
+
+    if custom_cases is None:
+        custom_cases = validate_custom_test_payloads(
+            problem,
+            [
+                {
+                    "id": case.pk,
+                    "label": case.label,
+                    "input_data": case.input_data,
+                    "expected_output": case.expected_output,
+                }
+                for case in CustomTestCase.objects.filter(problem=problem).order_by(
+                    "position", "id"
+                )
+            ],
+        )
+    elif custom_cases and not isinstance(custom_cases[0], ValidatedCustomTest):
+        if isinstance(custom_cases[0], dict):
+            custom_cases = validate_custom_test_payloads(problem, custom_cases)
+        else:
+            custom_cases = validate_custom_test_payloads(
+                problem,
+                [
+                    {
+                        "id": case.pk,
+                        "label": case.label,
+                        "input_data": case.input_data,
+                        "expected_output": case.expected_output,
+                    }
+                    for case in custom_cases
+                ],
+            )
+
+    tests = visible_tests_for(problem) + custom_visible_tests_for(
+        problem,
+        custom_cases,
+    )
     if not tests:
         result = ExecutionResult(
             status=PracticeRun.Status.NO_TESTS,

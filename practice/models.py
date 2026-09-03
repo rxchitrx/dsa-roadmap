@@ -28,6 +28,36 @@ class ProblemDraft(models.Model):
         return self.revision
 
 
+class CustomTestCase(models.Model):
+    """A learner-authored visible test case for one catalog Problem.
+
+    ``input_data`` is a JSON array of positional arguments. Keeping the
+    learner's cases as JSON makes the format explicit and lets the isolated
+    runner use the same payload shape as the built-in visible tests.
+    """
+
+    problem = models.ForeignKey(
+        "problems.Problem",
+        on_delete=models.CASCADE,
+        related_name="custom_practice_tests",
+    )
+    label = models.CharField(max_length=120)
+    input_data = models.JSONField(default=list)
+    expected_output = models.JSONField(null=True)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("position", "created_at", "id")
+        indexes = [
+            models.Index(fields=("problem", "position")),
+        ]
+
+    def __str__(self) -> str:
+        return f"Custom test for {self.problem.title}: {self.label}"
+
+
 class PracticeRun(models.Model):
     """One isolated visible-test execution for a Problem draft."""
 

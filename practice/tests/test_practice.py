@@ -5,8 +5,8 @@ from django.urls import reverse
 
 from problems.models import Problem
 
-from practice.models import PracticeRun, ProblemDraft
-from practice.services import run_visible_tests, starter_signature_for
+from practice.models import CustomTestCase, PracticeRun, ProblemDraft
+from practice.services import run_visible_tests, save_custom_tests, starter_signature_for
 
 
 @pytest.fixture
@@ -26,6 +26,14 @@ def post_draft(client, problem, *, code, base_revision):
     return client.post(
         reverse("practice:save_draft", kwargs={"slug": problem.slug}),
         data=json.dumps({"code": code, "base_revision": base_revision}),
+        content_type="application/json",
+    )
+
+
+def post_custom_tests(client, problem, cases):
+    return client.post(
+        reverse("practice:save_custom_tests", kwargs={"slug": problem.slug}),
+        data=json.dumps({"cases": cases}),
         content_type="application/json",
     )
 
@@ -204,3 +212,187 @@ def test_run_visible_tests_rejects_filesystem_and_network_capabilities(problem):
     assert practice_run.status == PracticeRun.Status.SAFETY_VIOLATION
     assert "Imports are disabled" in practice_run.message
     assert not practice_run.details
+
+
+@pytest.mark.django_db
+def test_custom_tests_can_be_added_edited_reordered_and_removed(problem):
+    first = save_custom_tests(
+        problem,
+        [
+            {
+                "label": "Empty input",
+                "input_data": [[]],
+                "expected_output": False,
+            },
+            {
+                "label": "Repeated at the end",
+                "input_data": [[1, 2, 3, 3]],
+                "expected_output": True,
+            },
+        ],
+    )
+
+    assert [case.label for case in first] == ["Empty input", "Repeated at the end"]
+    assert [case.position for case in first] == [0, 1]
+
+    second = save_custom_tests(
+        problem,
+        [
+            {
+                "id": first[1].pk,
+                "label": "Edited duplicate",
+                "input_data": [[4, 4]],
+                "expected_output": True,
+            }
+        ],
+    )
+
+    assert len(second) == 1
+    assert second[0].pk == first[1].pk
+    assert second[0].label == "Edited duplicate"
+    assert second[0].position == 0
+    assert not CustomTestCase.objects.filter(pk=first[0].pk).exists()
+
+
+@pytest.mark.django_db
+def test_custom_test_route_persists_cases_and_editor_renders_them(client, problem):
+    response = post_custom_tests(
+        client,
+        problem,
+        [
+            {
+                "label": "Single value",
+                "input_data": [[8]],
+                "expected_output": False,
+            }
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()["saved"] is True
+    assert response.json()["cases"][0]["label"] == "Single value"
+
+    editor = client.get(reverse("practice:editor", kwargs={"slug": problem.slug}))
+
+    assert editor.status_code == 200
+    body = editor.content.decode()
+    assert "Custom visible tests" in body
+    assert "Single value" in body
+    assert "[[8]]" in body
+    assert "data-remove-custom-test" in body
+
+
+@pytest.mark.django_db
+def test_malformed_custom_cases_are_rejected_before_execution(client, problem):
+    response = client.post(
+        reverse("practice:run_tests", kwargs={"slug": problem.slug}),
+        data=json.dumps(
+            {
+                "code": "def contains_duplicate(nums):\n    return len(nums) != len(set(nums))\n",
+                "custom_tests": [
+                    {
+                        "label": "Not an argument list",
+                        "input_data": {"nums": [1, 1]},
+                        "expected_output": True,
+                    }
+                ],
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["run"] is False
+    assert payload["validation_errors"][0]["field"] == "input"
+    assert PracticeRun.objects.count() == 0
+    assert CustomTestCase.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_runner_reports_mixed_default_and_custom_results(problem):
+    custom_case = CustomTestCase.objects.create(
+        problem=problem,
+        label="No duplicate should be false",
+        input_data=[[1, 2, 3]],
+        expected_output=True,
+        position=0,
+    )
+    code = "def contains_duplicate(nums):\n    return len(nums) != len(set(nums))\n"
+
+    practice_run = run_visible_tests(problem, code=code)
+
+    assert practice_run.status == PracticeRun.Status.ASSERTION_FAILURE
+    assert practice_run.passed_tests == 2
+    assert practice_run.total_tests == 3
+    assert [detail["kind"] for detail in practice_run.details] == [
+        "default",
+        "default",
+        "custom",
+    ]
+    assert practice_run.details[-1]["case_id"] == custom_case.pk
+    assert practice_run.details[0]["passed"] is True
+    assert practice_run.details[1]["passed"] is True
+    assert practice_run.details[2]["passed"] is False
+
+
+@pytest.mark.django_db
+def test_run_route_saves_custom_cases_and_returns_mixed_results(client, problem):
+    response = client.post(
+        reverse("practice:run_tests", kwargs={"slug": problem.slug}),
+        data=json.dumps(
+            {
+                "code": "def contains_duplicate(nums):\n    return len(nums) != len(set(nums))\n",
+                "custom_tests": [
+                    {
+                        "label": "Duplicate pair",
+                        "input_data": [[5, 5]],
+                        "expected_output": True,
+                    }
+                ],
+            }
+        ),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["run"] is True
+    assert payload["passed_tests"] == 3
+    assert payload["total_tests"] == 3
+    assert payload["custom_tests"][0]["label"] == "Duplicate pair"
+    assert payload["details"][-1]["kind"] == "custom"
+    assert CustomTestCase.objects.filter(label="Duplicate pair").exists()
+
+
+@pytest.mark.django_db
+def test_custom_test_delete_route_removes_only_current_problem_case(client, problem, db):
+    other_problem = Problem.objects.create(
+        title="Other problem",
+        slug="other-problem",
+        statement="Return a value.",
+    )
+    case = CustomTestCase.objects.create(
+        problem=problem,
+        label="Delete me",
+        input_data=[[]],
+        expected_output=None,
+    )
+    other_case = CustomTestCase.objects.create(
+        problem=other_problem,
+        label="Keep me",
+        input_data=[[]],
+        expected_output=None,
+    )
+
+    response = client.post(
+        reverse(
+            "practice:delete_custom_test",
+            kwargs={"slug": problem.slug, "case_id": case.pk},
+        )
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": True, "id": case.pk}
+    assert not CustomTestCase.objects.filter(pk=case.pk).exists()
+    assert CustomTestCase.objects.filter(pk=other_case.pk).exists()

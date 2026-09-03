@@ -6,8 +6,13 @@ from django.views.decorators.http import require_GET, require_POST
 
 from problems.models import Problem
 
+from .models import CustomTestCase
 from .models import PracticeRun
-from .services import get_or_create_draft, run_visible_tests, save_draft
+from .services import CustomTestValidationError
+from .services import get_or_create_draft
+from .services import run_visible_tests
+from .services import save_custom_tests
+from .services import save_draft
 
 
 def _active_problem(slug: str) -> Problem:
@@ -22,6 +27,7 @@ def _active_problem(slug: str) -> Problem:
 def editor(request, slug):
     problem = _active_problem(slug)
     draft, _created = get_or_create_draft(problem)
+    custom_tests = list(CustomTestCase.objects.filter(problem=problem))
     return render(
         request,
         "practice/editor.html",
@@ -29,6 +35,15 @@ def editor(request, slug):
             "problem": problem,
             "draft": draft,
             "latest_run": PracticeRun.objects.filter(problem=problem).first(),
+            "custom_tests": custom_tests,
+            "custom_tests_data": [
+                {
+                    **_custom_test_response(case),
+                    "input_json": json.dumps(case.input_data),
+                    "expected_json": json.dumps(case.expected_output),
+                }
+                for case in custom_tests
+            ],
         },
     )
 
@@ -92,6 +107,68 @@ def save_problem_draft(request, slug):
     )
 
 
+def _custom_test_response(case: CustomTestCase) -> dict:
+    return {
+        "id": case.pk,
+        "label": case.label,
+        "input_data": case.input_data,
+        "expected_output": case.expected_output,
+    }
+
+
+@require_POST
+def save_problem_custom_tests(request, slug):
+    problem = _active_problem(slug)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse(
+            {
+                "saved": False,
+                "errors": [
+                    {
+                        "index": None,
+                        "field": "cases",
+                        "message": "Send custom tests as valid JSON.",
+                        "id": None,
+                    }
+                ],
+            },
+            status=400,
+        )
+
+    cases = payload.get("cases") if isinstance(payload, dict) else payload
+    try:
+        saved_cases = save_custom_tests(problem, cases)
+    except CustomTestValidationError as error:
+        return JsonResponse(
+            {"saved": False, "errors": error.errors},
+            status=400,
+        )
+
+    return JsonResponse(
+        {
+            "saved": True,
+            "cases": [_custom_test_response(case) for case in saved_cases],
+            "message": "Custom tests saved.",
+        }
+    )
+
+
+@require_POST
+def delete_problem_custom_test(request, slug, case_id):
+    problem = _active_problem(slug)
+    case = CustomTestCase.objects.filter(problem=problem, pk=case_id).first()
+    if case is None:
+        return JsonResponse(
+            {"deleted": False, "message": "That custom test no longer exists."},
+            status=404,
+        )
+    case.delete()
+    return JsonResponse({"deleted": True, "id": case_id})
+
+
 @require_POST
 def run_problem_tests(request, slug):
     problem = _active_problem(slug)
@@ -111,7 +188,40 @@ def run_problem_tests(request, slug):
             status=400,
         )
 
-    practice_run = run_visible_tests(problem, code=code)
+    custom_cases = None
+    if isinstance(payload, dict) and "custom_tests" in payload:
+        try:
+            custom_cases = save_custom_tests(problem, payload["custom_tests"])
+        except CustomTestValidationError as error:
+            return JsonResponse(
+                {
+                    "run": False,
+                    "validation_errors": error.errors,
+                    "message": "Fix the custom test cases before execution.",
+                },
+                status=400,
+            )
+
+    try:
+        practice_run = run_visible_tests(
+            problem,
+            code=code,
+            custom_cases=custom_cases,
+        )
+    except CustomTestValidationError as error:
+        return JsonResponse(
+            {
+                "run": False,
+                "validation_errors": error.errors,
+                "message": "Fix the custom test cases before execution.",
+            },
+            status=400,
+        )
+    saved_custom_tests = (
+        custom_cases
+        if custom_cases is not None
+        else CustomTestCase.objects.filter(problem=problem)
+    )
     return JsonResponse(
         {
             "run": True,
@@ -124,5 +234,8 @@ def run_problem_tests(request, slug):
             "total_tests": practice_run.total_tests,
             "duration_ms": practice_run.duration_ms,
             "details": practice_run.details,
+            "custom_tests": [
+                _custom_test_response(case) for case in saved_custom_tests
+            ],
         }
     )

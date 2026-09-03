@@ -60,12 +60,62 @@
             </div>
           </form>
 
+          <section
+            class="custom-tests-panel"
+            data-custom-tests
+            data-save-url="{% url 'practice:save_custom_tests' problem.slug %}"
+            aria-labelledby="custom-tests-heading"
+          >
+            <div class="custom-tests-header">
+              <div>
+                <p class="section-label">Your edge cases</p>
+                <h2 id="custom-tests-heading">Custom visible tests</h2>
+                <p class="run-help">Add cases you want to remember. Input is a JSON array of positional arguments, like <code>[[1, 2, 1]]</code>. Type <code>null</code> when the expected result is None.</p>
+              </div>
+              <div class="custom-tests-actions">
+                <span class="custom-tests-status" data-custom-status aria-live="polite">Ready to add a case</span>
+                <button class="secondary-button" type="button" data-add-custom-test>Add a case</button>
+                <button class="run-button" type="button" data-save-custom-tests>Save custom tests</button>
+              </div>
+            </div>
+
+            <div class="custom-test-list" data-custom-test-list>
+              {% for case in custom_tests_data %}
+                <article class="custom-test-row" data-custom-test-row data-case-id="{{ case.id }}">
+                  <div class="custom-test-row-header">
+                    <label>
+                      <span class="field-label">Name</span>
+                      <input class="custom-label-input" data-custom-label type="text" maxlength="120" value="{{ case.label }}" aria-label="Custom test name">
+                    </label>
+                    <button class="text-button" type="button" data-remove-custom-test>Remove</button>
+                  </div>
+                  <div class="custom-test-fields">
+                    <label>
+                      <span class="field-label">Input arguments</span>
+                      <textarea class="custom-json-input" data-custom-input rows="3" spellcheck="false" aria-label="Custom test input">{{ case.input_json }}</textarea>
+                      <span class="custom-field-error" data-custom-error="input" role="alert"></span>
+                    </label>
+                    <label>
+                      <span class="field-label">Expected output</span>
+                      <textarea class="custom-json-input" data-custom-expected rows="3" spellcheck="false" aria-label="Custom test expected output">{{ case.expected_json }}</textarea>
+                      <span class="custom-field-error" data-custom-error="expected" role="alert"></span>
+                    </label>
+                  </div>
+                  <span class="custom-field-error" data-custom-error="label" role="alert"></span>
+                </article>
+              {% empty %}
+                <p class="custom-tests-empty" data-custom-empty>No custom cases yet. Add one when you have an edge case worth revisiting.</p>
+              {% endfor %}
+            </div>
+            <p class="custom-tests-validation" data-custom-validation role="alert"></p>
+          </section>
+
           <section class="run-panel" aria-labelledby="visible-tests-heading">
             <div class="run-panel-header">
               <div>
                 <p class="section-label">Feedback loop</p>
                 <h2 id="visible-tests-heading">Visible tests</h2>
-                <p class="run-help">Runs locally in a short-lived process with imports, files, network, and subprocesses disabled.</p>
+                <p class="run-help">Runs default cases and your saved custom cases locally in a short-lived process with imports, files, network, and subprocesses disabled.</p>
               </div>
             </div>
             <div
@@ -82,7 +132,10 @@
                   <ol class="run-cases" data-run-cases>
                     {% for detail in latest_run.details %}
                       <li data-state="{% if detail.passed %}passed{% else %}failed{% endif %}">
-                        <span>{{ detail.label }}</span>
+                        <span>
+                          <span class="run-case-source">{% if detail.kind == 'custom' %}Custom{% else %}Default{% endif %}</span>
+                          {{ detail.label }}
+                        </span>
                         {% if detail.passed %}<strong>Passed</strong>{% else %}<strong>Needs another look</strong>{% endif %}
                         {% if detail.message %}<small>{{ detail.message }}</small>{% endif %}
                       </li>
