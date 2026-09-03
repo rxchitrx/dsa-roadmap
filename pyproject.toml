@@ -1,0 +1,20 @@
+[project]
+name = "dsa-roadmap"
+version = "0.1.0"
+description = "A local-first DSA learning and practice workspace."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+dependencies = [
+    "Django>=5.2,<7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.11",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "dsa_roadmap.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
