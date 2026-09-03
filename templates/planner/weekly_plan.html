@@ -1,0 +1,130 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weekly plan · DSA Roadmap</title>
+    <link rel="stylesheet" href="{% static 'planner/weekly.css' %}">
+  </head>
+  <body>
+    <main class="weekly-shell">
+      <header class="weekly-header">
+        <div>
+          <p class="eyebrow">DSA ROADMAP / PLANNER</p>
+          <h1>Weekly plan</h1>
+          <p class="date-range">
+            {{ week_start|date:'M j' }} – {{ week_end|date:'M j, Y' }}
+          </p>
+        </div>
+        <a class="back-link" href="{% url 'planner:today' %}">Back to Today</a>
+      </header>
+
+      <section class="plan-toolbar" aria-labelledby="edit-heading">
+        <div>
+          <p class="eyebrow">SHAPE THE WEEK</p>
+          <h2 id="edit-heading">Make the routine fit your week</h2>
+          <p class="toolbar-copy">
+            Edit a title or duration, then use the arrows to change the order within that day.
+          </p>
+        </div>
+        {% if not routine_generated %}
+          <form method="post" action="{% url 'planner:generate_weekly_routine' %}">
+            {% csrf_token %}
+            <button class="primary-button" type="submit" data-testid="weekly-generate-routine">
+              Generate this week
+            </button>
+          </form>
+        {% else %}
+          <span class="routine-ready" data-testid="weekly-routine-ready">Routine loaded</span>
+        {% endif %}
+      </section>
+
+      <div class="day-list">
+        {% for day in days %}
+          <section class="day-card" data-testid="plan-day">
+            <header class="day-header">
+              <h2>{{ day.label }}</h2>
+              <time datetime="{{ day.date|date:'Y-m-d' }}">{{ day.date|date:'M j' }}</time>
+            </header>
+
+            {% if day.items %}
+              <ol class="block-list">
+                {% for item in day.items %}
+                  <li class="plan-item" data-testid="weekly-block">
+                    <div class="position-number" aria-hidden="true">{{ forloop.counter }}</div>
+                    <form
+                      class="edit-form"
+                      method="post"
+                      action="{% url 'planner:edit_study_block' item.block.pk %}"
+                    >
+                      {% csrf_token %}
+                      <div class="field-grid">
+                        <label>
+                          Title
+                          <input
+                            type="text"
+                            name="title"
+                            maxlength="200"
+                            value="{% if item.form.is_bound %}{{ item.form.title.value|default_if_none:'' }}{% else %}{{ item.block.title }}{% endif %}"
+                            required
+                            data-testid="edit-title"
+                          >
+                        </label>
+                        <label>
+                          Minutes
+                          <input
+                            type="number"
+                            name="planned_minutes"
+                            min="1"
+                            step="1"
+                            value="{% if item.form.is_bound %}{{ item.form.planned_minutes.value|default_if_none:'' }}{% else %}{{ item.block.planned_minutes }}{% endif %}"
+                            required
+                            data-testid="edit-duration"
+                          >
+                        </label>
+                      </div>
+                      {% if item.form.errors %}
+                        <div class="form-errors" role="alert" data-testid="edit-errors">
+                          {% for error in item.form.title.errors %}<p>{{ error }}</p>{% endfor %}
+                          {% for error in item.form.planned_minutes.errors %}<p>{{ error }}</p>{% endfor %}
+                          {% for error in item.form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                        </div>
+                      {% endif %}
+                      <button class="save-button" type="submit">Save changes</button>
+                    </form>
+
+                    <div class="reorder-controls" aria-label="Reorder {{ item.block.title }}">
+                      <form method="post" action="{% url 'planner:reorder_study_block' item.block.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="direction" value="up">
+                        <button
+                          class="move-button"
+                          type="submit"
+                          aria-label="Move {{ item.block.title }} up"
+                          {% if forloop.first %}disabled{% endif %}
+                        >↑</button>
+                      </form>
+                      <form method="post" action="{% url 'planner:reorder_study_block' item.block.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="direction" value="down">
+                        <button
+                          class="move-button"
+                          type="submit"
+                          aria-label="Move {{ item.block.title }} down"
+                          {% if forloop.last %}disabled{% endif %}
+                        >↓</button>
+                      </form>
+                    </div>
+                  </li>
+                {% endfor %}
+              </ol>
+            {% else %}
+              <p class="day-empty">No blocks planned yet.</p>
+            {% endif %}
+          </section>
+        {% endfor %}
+      </div>
+    </main>
+  </body>
+</html>

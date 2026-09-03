@@ -13,4 +13,15 @@ urlpatterns = [
         views.generate_weekly_routine_view,
         name="generate_weekly_routine",
     ),
+    path("routine/", views.weekly_plan, name="weekly_plan"),
+    path(
+        "routine/blocks/<int:block_id>/edit/",
+        views.edit_study_block,
+        name="edit_study_block",
+    ),
+    path(
+        "routine/blocks/<int:block_id>/move/",
+        views.reorder_study_block,
+        name="reorder_study_block",
+    ),
 ]

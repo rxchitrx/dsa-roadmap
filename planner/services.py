@@ -82,3 +82,47 @@ def is_weekly_routine_complete(value: date) -> bool:
         StudyBlock.objects.filter(week_start=week_start).count()
         == DEFAULT_WEEKLY_ROUTINE_BLOCK_COUNT
     )
+
+
+@transaction.atomic
+def move_study_block(block: StudyBlock, direction: str) -> bool:
+    """Move a block one position up or down within its own calendar day."""
+
+    if direction not in {"up", "down"}:
+        return False
+
+    blocks = list(
+        StudyBlock.objects.select_for_update()
+        .filter(date=block.date)
+        .order_by("position", "id")
+    )
+    if not blocks:
+        return False
+
+    # Normalize first so older/manual rows with duplicate default positions still
+    # get deterministic ordering and future moves remain contiguous.
+    for position, item in enumerate(blocks):
+        if item.position != position:
+            item.position = position
+    StudyBlock.objects.bulk_update(blocks, ["position"])
+
+    try:
+        current_index = next(
+            index for index, item in enumerate(blocks) if item.pk == block.pk
+        )
+    except StopIteration:
+        return False
+
+    swap_index = current_index - 1 if direction == "up" else current_index + 1
+    if not 0 <= swap_index < len(blocks):
+        return False
+
+    blocks[current_index].position, blocks[swap_index].position = (
+        blocks[swap_index].position,
+        blocks[current_index].position,
+    )
+    StudyBlock.objects.bulk_update(
+        [blocks[current_index], blocks[swap_index]],
+        ["position"],
+    )
+    return True

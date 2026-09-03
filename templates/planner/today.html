@@ -22,14 +22,24 @@
             <h2 id="plan-heading">Study plan</h2>
           </div>
           {% if not routine_generated %}
-            <form method="post" action="{% url 'planner:generate_weekly_routine' %}">
-              {% csrf_token %}
-              <button class="primary-button" type="submit" data-testid="generate-routine">
-                Generate this week
-              </button>
-            </form>
+            <div class="plan-actions">
+              <a class="secondary-button" href="{% url 'planner:weekly_plan' %}">
+                Edit weekly plan
+              </a>
+              <form method="post" action="{% url 'planner:generate_weekly_routine' %}">
+                {% csrf_token %}
+                <button class="primary-button" type="submit" data-testid="generate-routine">
+                  Generate this week
+                </button>
+              </form>
+            </div>
           {% else %}
-            <span class="routine-ready" data-testid="routine-ready">This week is ready</span>
+            <div class="plan-actions">
+              <a class="secondary-button" href="{% url 'planner:weekly_plan' %}">
+                Edit weekly plan
+              </a>
+              <span class="routine-ready" data-testid="routine-ready">This week is ready</span>
+            </div>
           {% endif %}
         </div>
 
