@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ problem.title }} · Practice · DSA Roadmap</title>
     <link rel="stylesheet" href="{% static 'practice/editor.css' %}">
-    <script src="{% static 'practice/editor.js' %}" defer></script>
+    <script src="{% static 'practice/editor.js' %}?v=2" defer></script>
   </head>
   <body>
     <main class="practice-shell" data-testid="practice-editor">
@@ -202,23 +202,29 @@
             </div>
           </section>
 
-          {% if latest_run %}
-            <section class="reflection-prompt" data-testid="reflection-prompt" aria-labelledby="reflection-prompt-heading">
-              <div>
-                <p class="section-label">After this attempt</p>
-                <h2 id="reflection-prompt-heading">Capture the correction</h2>
-                <p>Turn this run into a reusable lesson: rewrite the approach, name the cause, and choose one next correction.</p>
-              </div>
-              <div class="reflection-prompt-actions">
-                {% if latest_reflection %}<span class="reflection-status">Saved {{ latest_reflection.updated_at|date:"M j, Y · g:i A" }}</span>{% endif %}
-                <a
-                  class="secondary-button"
-                  data-testid="reflection-link"
-                  href="{% url 'practice:reflection' problem.slug latest_run.pk %}"
-                >{% if latest_reflection %}Edit reflection{% else %}Reflect on this run{% endif %}</a>
-              </div>
-            </section>
-          {% endif %}
+          <section
+            class="reflection-prompt"
+            data-testid="reflection-prompt"
+            data-reflection-prompt
+            aria-labelledby="reflection-prompt-heading"
+            {% if not latest_run %}hidden{% endif %}
+          >
+            <div>
+              <p class="section-label">After this attempt</p>
+              <h2 id="reflection-prompt-heading">Capture the correction</h2>
+              <p>Turn this run into a reusable lesson: rewrite the approach, name the cause, and choose one next correction.</p>
+            </div>
+            <div class="reflection-prompt-actions">
+              {% if latest_reflection %}<span class="reflection-status" data-reflection-status>Saved {{ latest_reflection.updated_at|date:"M j, Y · g:i A" }}</span>{% else %}<span class="reflection-status" data-reflection-status></span>{% endif %}
+              <a
+                class="secondary-button"
+                data-testid="reflection-link"
+                data-reflection-link
+                data-reflection-url-template="{% url 'practice:reflection' problem.slug 0 %}"
+                href="{% if latest_run %}{% url 'practice:reflection' problem.slug latest_run.pk %}{% else %}#{% endif %}"
+              >{% if latest_reflection %}Edit reflection{% else %}Reflect on this run{% endif %}</a>
+            </div>
+          </section>
         </section>
 
         <aside class="context-panel" aria-label="Problem context">

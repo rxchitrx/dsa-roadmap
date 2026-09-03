@@ -54,6 +54,21 @@ def test_editor_creates_initial_problem_specific_draft(client, problem):
 
 
 @pytest.mark.django_db
+def test_editor_includes_a_reflection_target_that_can_be_updated_after_first_run(
+    client, problem
+):
+    response = client.get(reverse("practice:editor", kwargs={"slug": problem.slug}))
+
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert 'data-reflection-prompt' in body
+    assert 'data-reflection-link' in body
+    assert 'data-reflection-url-template="/practice/contains-duplicate/runs/0/reflection/"' in body
+    assert 'href="#"' in body
+    assert 'hidden' in body
+
+
+@pytest.mark.django_db
 def test_autosave_persists_code_and_advances_revision(client, problem):
     client.get(reverse("practice:editor", kwargs={"slug": problem.slug}))
 

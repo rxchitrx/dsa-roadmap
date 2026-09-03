@@ -98,6 +98,9 @@
   const customValidation = customPanel?.querySelector("[data-custom-validation]");
   const addCustomButton = customPanel?.querySelector("[data-add-custom-test]");
   const saveCustomButton = customPanel?.querySelector("[data-save-custom-tests]");
+  const reflectionPrompt = document.querySelector("[data-reflection-prompt]");
+  const reflectionLink = document.querySelector("[data-reflection-link]");
+  const reflectionStatus = document.querySelector("[data-reflection-status]");
 
   function textElement(tag, className, text) {
     const element = document.createElement(tag);
@@ -112,6 +115,17 @@
     } catch (_error) {
       return String(value);
     }
+  }
+
+  function updateReflectionLink(runId) {
+    if (!runId || !reflectionPrompt || !reflectionLink) return;
+    const template = reflectionLink.dataset.reflectionUrlTemplate;
+    if (template) {
+      reflectionLink.href = template.replace("/runs/0/", `/runs/${runId}/`);
+    }
+    reflectionLink.textContent = "Reflect on this run";
+    if (reflectionStatus) reflectionStatus.textContent = "";
+    reflectionPrompt.hidden = false;
   }
 
   function setCustomStatus(message, state = "saved") {
@@ -466,6 +480,7 @@
         payload.custom_tests?.length ? "Saved with latest run" : "No custom tests saved",
         "saved",
       );
+      updateReflectionLink(payload.id);
       renderRun(payload);
     } catch (error) {
       result.dataset.state = "request_error";
