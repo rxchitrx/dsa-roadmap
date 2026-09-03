@@ -110,7 +110,7 @@
           {% if next_step_block %}
             <article class="study-block next-step-card" data-testid="study-block">
               <div class="next-step-topline">
-                <p class="block-label">Step {{ next_step_block.sequence_number }} of {{ study_blocks|length }}</p>
+                <p class="block-label">Step {{ next_step_block.sequence_number }} of {{ sequence_total }}</p>
                 <div class="study-block-meta">
                   <span class="duration" data-testid="study-block-duration">{{ next_step_block.planned_minutes }} min planned</span>
                   <span class="status status--{{ next_step_block.status }}" data-testid="study-block-status">{{ next_step_block.get_status_display }}</span>
@@ -129,6 +129,12 @@
                 {% elif next_step_block.is_concept_learning_block %}
                   <p class="unassigned-concept" data-testid="unassigned-concept">No concept assigned yet.</p>
                 {% endif %}
+                {% if is_next_step_review and next_review %}
+                  <p class="assigned-concept due-review-link" data-testid="next-due-review">
+                    <span class="assigned-concept-label">Due review</span>
+                    <a href="{% url 'reviews:problem_review' slug=next_review.problem.slug %}">{{ next_review.problem.title }}</a>
+                  </p>
+                {% endif %}
                 {% include "planner/_problem_assignments.html" with block=next_step_block %}
               </div>
               {% include "planner/_timer_controls.html" with block=next_step_block %}
@@ -139,6 +145,10 @@
               <h3>You’ve finished today’s plan.</h3>
               <p>Nice work. Use the curriculum to keep learning, or come back tomorrow for the next sequence.</p>
             </div>
+          {% endif %}
+
+          {% if deferred_review_block %}
+            <p class="deferred-review-note" data-testid="deferred-review-note"><strong>Revisit skipped today.</strong> “{{ deferred_review_block.title }}” · {{ deferred_review_block.planned_minutes }} min planned is held until a review is due. Start with the next learning step; your next review will appear here when it is ready.</p>
           {% endif %}
 
           {% if upcoming_blocks %}

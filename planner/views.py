@@ -140,19 +140,41 @@ def _today_context(today_date=None, timer_error=None):
     )
     for sequence_number, block in enumerate(study_blocks, start=1):
         block.sequence_number = sequence_number
-    pending_blocks = [
+    routine_generated = is_weekly_routine_complete(today_date)
+    due_reviews = list(due_review_queue()) if today_date.weekday() < 5 else []
+    deferred_review_blocks = [
         block
         for block in study_blocks
+        if (
+            block.status != StudyBlock.Status.COMPLETED
+            and block.routine_key
+            and block.routine_key.endswith("-review")
+            and not due_reviews
+        )
+    ]
+    action_blocks = [
+        block for block in study_blocks if block not in deferred_review_blocks
+    ]
+    for sequence_number, block in enumerate(action_blocks, start=1):
+        block.sequence_number = sequence_number
+    pending_blocks = [
+        block
+        for block in action_blocks
         if block.status != StudyBlock.Status.COMPLETED
     ]
     completed_blocks = [
         block
-        for block in study_blocks
+        for block in action_blocks
         if block.status == StudyBlock.Status.COMPLETED
     ]
-    study_block = study_blocks[0] if study_blocks else None
+    study_block = action_blocks[0] if action_blocks else None
     next_step_block = pending_blocks[0] if pending_blocks else None
     upcoming_blocks = pending_blocks[1:] if next_step_block else []
+    is_next_step_review = bool(
+        next_step_block
+        and next_step_block.routine_key
+        and next_step_block.routine_key.endswith("-review")
+    )
     is_weekday = today_date.weekday() < 5
     is_sunday = today_date.weekday() == 6
     return {
@@ -160,15 +182,19 @@ def _today_context(today_date=None, timer_error=None):
         "study_block": study_block,
         "study_blocks": study_blocks,
         "next_step_block": next_step_block,
+        "next_review": due_reviews[0] if due_reviews else None,
+        "is_next_step_review": is_next_step_review,
         "upcoming_blocks": upcoming_blocks,
         "completed_blocks": completed_blocks,
+        "sequence_total": len(action_blocks),
+        "deferred_review_block": deferred_review_blocks[0] if deferred_review_blocks else None,
         "rest_day": rest_day,
         "suppressed_block_count": all_study_blocks.count() if rest_day else 0,
-        "routine_generated": is_weekly_routine_complete(today_date),
+        "routine_generated": routine_generated,
         "timer_error": timer_error,
         "is_weekday": is_weekday,
         "is_sunday": is_sunday,
-        "due_reviews": due_review_queue() if is_weekday else [],
+        "due_reviews": due_reviews,
         "week_calendar": _week_calendar(today_date),
         "active_problem_count": Problem.objects.filter(is_active=True).count(),
         "catalog_sync": CatalogSync.objects.first(),

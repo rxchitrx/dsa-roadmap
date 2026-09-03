@@ -5,6 +5,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from planner.models import StudyBlock
+from planner.services import generate_weekly_routine, week_start_for
+from practice.models import LearningStatus, ProblemLearningStatus
+from problems.models import Problem
+from reviews.models import ProblemReview, ReviewRating
 
 
 @pytest.mark.django_db
@@ -99,3 +103,52 @@ def test_today_ui_rejects_an_invalid_calendar_date(client):
     response = client.get(reverse("planner:today"), {"date": "not-a-date"})
 
     assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_today_skips_revisit_when_no_review_is_due(client):
+    today = timezone.localdate()
+    problem = Problem.objects.create(
+        title="Existing practice problem",
+        slug="existing-practice-problem",
+        statement="A saved practice problem.",
+    )
+    ProblemLearningStatus.objects.create(
+        problem=problem,
+        status=LearningStatus.ATTEMPTED,
+    )
+    generate_weekly_routine(week_start_for(today))
+
+    response = client.get(reverse("planner:today"))
+
+    assert response.context["next_step_block"].routine_key == f"{today.weekday()}-concept"
+    assert response.context["deferred_review_block"] is not None
+    assert 'data-testid="deferred-review-note"' in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_today_leads_with_a_specific_due_review_when_one_exists(client):
+    today = timezone.localdate()
+    problem = Problem.objects.create(
+        title="Review this exact problem",
+        slug="review-this-exact-problem",
+        statement="A saved review problem.",
+    )
+    now = timezone.now()
+    ProblemReview.objects.create(
+        problem=problem,
+        rating=ReviewRating.SOLVED_WITH_HELP,
+        interval_days=3,
+        due_at=now - timedelta(hours=1),
+        review_count=1,
+        last_reviewed_at=now - timedelta(days=3),
+    )
+    generate_weekly_routine(week_start_for(today))
+
+    response = client.get(reverse("planner:today"))
+    html = response.content.decode()
+
+    assert response.context["is_next_step_review"] is True
+    assert response.context["next_step_block"].routine_key == f"{today.weekday()}-review"
+    assert 'data-testid="next-due-review"' in html
+    assert "Review this exact problem" in html

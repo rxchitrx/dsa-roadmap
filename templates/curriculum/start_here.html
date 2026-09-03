@@ -45,7 +45,7 @@
 
         <div class="day-list">
           {% for day in days %}
-            <article class="day-card" data-testid="start-here-day" data-day-number="{{ day.number }}">
+            <article id="day-{{ day.number }}" class="day-card" data-testid="start-here-day" data-day-number="{{ day.number }}">
               <div class="day-card-topline">
                 <span class="day-number">DAY {{ day.number|stringformat:'02d' }}</span>
                 <span class="day-minutes">{{ day.minutes }} min</span>

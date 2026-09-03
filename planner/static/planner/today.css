@@ -496,6 +496,8 @@ h1 {
 .empty-title { margin-bottom: 8px; font-size: 1.1rem; font-weight: 700; }
 .empty-copy { max-width: 48ch; margin-bottom: 0; color: var(--muted); line-height: 1.6; }
 .rest-day-state { border-color: color-mix(in srgb, var(--green) 35%, var(--border)); }
+.deferred-review-note { margin: 18px 2px 0; color: var(--muted); font-size: 0.8rem; line-height: 1.55; }
+.deferred-review-note strong { color: var(--amber-soft); }
 
 @media (max-width: 680px) {
   .today-shell { width: min(100% - 32px, 1040px); padding-top: 42px; }
